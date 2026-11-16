@@ -120,6 +120,7 @@ async function clearCache(): Promise<boolean> {
     reader = null;
     elements.progress.value = 0;
     elements.stage.textContent = 'Not loaded';
+    setPhase('idle');
     const cleared = await clearVoiceCache();
     elements.cacheStatus.textContent = cleared ? 'Deleted. The next prepare downloads the voice again.' : 'This browser can\'t save voice files here, so there is nothing to delete.';
     log(cleared ? 'saved voice files deleted' : 'no voice cache (OPFS unavailable)');
@@ -134,8 +135,18 @@ async function clearCache(): Promise<boolean> {
   }
 }
 
+type Phase = 'idle' | 'downloading' | 'preparing' | 'ready';
+
+/** Drives the design: the Prepare button fills as its own download bar, and the status dot turns green when ready. */
+function setPhase(phase: Phase, fraction = 0): void {
+  elements.prepare.dataset.phase = phase;
+  elements.prepare.style.setProperty('--p', String(phase === 'idle' ? 0 : phase === 'downloading' ? Math.min(Math.max(fraction, 0), 1) : 1));
+  elements.stage.toggleAttribute('data-ready', phase === 'ready');
+}
+
 function showProgress(progress: LoadProgress): void {
   if (progress.stage === 'downloading') {
+    setPhase('downloading', progress.totalBytes > 0 ? progress.loadedBytes / progress.totalBytes : 0);
     elements.progress.max = Math.max(progress.totalBytes, 1);
     elements.progress.value = progress.loadedBytes;
     const total = progress.totalBytes > 0 ? ` / ${megabytes(progress.totalBytes)}` : '';
@@ -145,6 +156,7 @@ function showProgress(progress: LoadProgress): void {
     return;
   }
   elements.progress.removeAttribute('value');
+  setPhase('preparing');
   elements.stage.textContent = progress.stage === 'preparing' ? 'Preparing…' : 'Warming up…';
 }
 
@@ -165,12 +177,13 @@ async function loadVoices(): Promise<void> {
   const defaultVoice = voices.find(voice => voice.isDefault) ?? voices[0];
   for (const voice of voices) {
     const label = document.createElement('label');
-    label.innerHTML = `<input type="radio" name="voice" value="${voice.id}"> ${voice.label.ar} · ${voice.label.en} `;
+    label.innerHTML = `<input type="radio" name="voice" value="${voice.id}"><span>${voice.label.ar}</span> <small lang="en">${voice.label.en}</small>`;
     const radio = label.querySelector('input') as HTMLInputElement;
     radio.checked = voice === defaultVoice;
     radio.addEventListener('change', () => void switchVoice());
     elements.voices.append(label);
   }
+  elements.voices.style.setProperty('--n', String(voices.length));
   elements.modelUrl.value = defaultVoice.model.url;
   elements.vocoderUrl.value = defaultVoice.vocoder?.url ?? '';
   const missing = await missingModelFiles();
@@ -181,6 +194,7 @@ async function prepare(): Promise<void> {
   elements.prepare.disabled = true;
   elements.play.disabled = true;
   clearError();
+  setPhase('downloading', 0);
   const startedAt = performance.now();
   try {
     await reader?.dispose();
@@ -191,15 +205,18 @@ async function prepare(): Promise<void> {
     reader.on('error', showError);
     reader.on('state', (state) => {
       elements.playback.textContent = state;
+      document.body.dataset.playback = state;
     });
     elements.progress.max = 1;
     elements.progress.value = 1;
     elements.stage.textContent = readyText(reader);
+    setPhase('ready');
     log(`voice ${reader.voice.id} ready in ${Math.round(performance.now() - startedAt)} ms on ${reader.backend}`);
     elements.play.disabled = false;
   }
   catch (error) {
     elements.stage.textContent = 'Not loaded';
+    setPhase('idle');
     showError(error);
   }
   finally {
