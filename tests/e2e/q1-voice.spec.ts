@@ -24,7 +24,7 @@ async function serveTestVoices(context: BrowserContext, options: { missingModel?
   };
   await context.route(url => url.pathname.startsWith(TEST_VOICE_BASE), async (route) => {
     const name = new URL(route.request().url()).pathname.split('/').pop() ?? '';
-    if (name.endsWith('.onnx')) modelRequests.push(name);
+    if (name.endsWith('.onnx') && route.request().method() === 'GET') modelRequests.push(name);
     const file = options.missingModel && name === 'tiny-acoustic.onnx' ? undefined : files[name];
     if (!file) return route.fulfill({ status: 404 });
     return route.fulfill({ status: 200, ...(await file()) });
