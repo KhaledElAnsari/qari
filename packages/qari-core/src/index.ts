@@ -1,6 +1,7 @@
 /** Public API of @khaledelansari/qari-core. */
 export { createReader, probeDevice } from './reader/create-reader';
 export { startSynthWorker } from './start-worker';
+export { clearVoiceCache } from './models/model-store';
 export type { Reader, ReaderEvents, ReaderOptions, ReaderState, Synthesis } from './reader/create-reader';
 export { loadVoiceConfig, modelKey, parseVoiceConfig, resolveVoiceUrls } from './voice/voice-config';
 export type { ModelFile, TimingsMode, VoiceConfig, VoiceConfigResult } from './voice/voice-config';

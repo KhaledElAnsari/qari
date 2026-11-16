@@ -48,6 +48,27 @@ export function concatChunks(chunks: Uint8Array[], totalLength = chunks.reduce((
   return bytes;
 }
 
+/**
+ * Deletes every saved voice file on this site (the whole OPFS cache directory); the next prepare downloads again.
+ * Dispose readers first: a Worker still holding a file can make the browser refuse. Returns false where OPFS isn't available.
+ */
+export async function clearVoiceCache(): Promise<boolean> {
+  let root: FileSystemDirectoryHandle;
+  try {
+    root = await navigator.storage.getDirectory();
+  }
+  catch {
+    return false;
+  }
+  try {
+    await root.removeEntry(CACHE_DIRECTORY, { recursive: true });
+  }
+  catch (error) {
+    if ((error as { name?: string } | null)?.name !== 'NotFoundError') throw new QariError('unexpected', `Could not clear the voice cache: ${describeError(error)}`);
+  }
+  return true;
+}
+
 /** Opens the OPFS cache directory, or returns null where OPFS isn't available (non-HTTPS, some private modes). */
 export async function openCacheDirectory(): Promise<CacheDirectory | null> {
   try {

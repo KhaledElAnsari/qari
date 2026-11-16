@@ -1,4 +1,4 @@
-import { cacheFileName, concatChunks, fetchModel, readCached, writeCached } from './model-store';
+import { CACHE_DIRECTORY, cacheFileName, clearVoiceCache, concatChunks, fetchModel, readCached, writeCached } from './model-store';
 import type { CacheDirectory } from './model-store';
 
 /** In-memory stand-in for an OPFS directory; supports the createWritable path only. */
@@ -99,4 +99,37 @@ describe('model store (Q1, PRD Q1)', () => {
     expect(onWarning).toHaveBeenCalledWith(expect.stringContaining('OPFS'));
   });
 
+  describe('clearVoiceCache', () => {
+    const withStorage = (getDirectory: () => Promise<unknown>) => {
+      Object.defineProperty(globalThis, 'navigator', { value: { storage: { getDirectory } }, configurable: true });
+    };
+    afterEach(() => {
+      Object.defineProperty(globalThis, 'navigator', { value: undefined, configurable: true });
+    });
+
+    it('removes the whole cache directory', async () => {
+      const removeEntry = jest.fn(async () => undefined);
+      withStorage(async () => ({ removeEntry }));
+      await expect(clearVoiceCache()).resolves.toBe(true);
+      expect(removeEntry).toHaveBeenCalledWith(CACHE_DIRECTORY, { recursive: true });
+    });
+
+    it('treats an already empty cache as cleared, and reports no storage as false', async () => {
+      withStorage(async () => ({ removeEntry: async () => {
+        throw Object.assign(new Error('gone'), { name: 'NotFoundError' });
+      } }));
+      await expect(clearVoiceCache()).resolves.toBe(true);
+      withStorage(async () => {
+        throw new Error('SecurityError');
+      });
+      await expect(clearVoiceCache()).resolves.toBe(false);
+    });
+
+    it('turns a refused delete into a QariError', async () => {
+      withStorage(async () => ({ removeEntry: async () => {
+        throw Object.assign(new Error('busy'), { name: 'NoModificationAllowedError' });
+      } }));
+      await expect(clearVoiceCache()).rejects.toMatchObject({ code: 'unexpected', detail: expect.stringContaining('busy') });
+    });
+  });
 });
