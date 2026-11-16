@@ -115,6 +115,10 @@ export async function download(file: ModelFile, onProgress: (progress: FileProgr
     const code = MISSING_FILE_STATUSES.has(response.status) ? 'voice-unavailable' : 'voice-download-failed';
     throw new QariError(code, `Model ${file.url} returned HTTP ${response.status}.`);
   }
+  // Dev servers and SPA hosts answer a missing file with their index page and HTTP 200. Never cache that as a model.
+  if (response.headers.get('content-type')?.toLowerCase().includes('text/html')) {
+    throw new QariError('voice-unavailable', `Model ${file.url} returned an HTML page instead of a model file. Is the file on the server at that path?`);
+  }
   const contentLength = Number(response.headers.get('content-length'));
   const totalBytes = Number.isFinite(contentLength) && contentLength > 0 ? contentLength : (file.sizeBytes ?? 0);
   const chunks: Uint8Array[] = [];

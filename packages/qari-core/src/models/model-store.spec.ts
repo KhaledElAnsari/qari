@@ -78,6 +78,14 @@ describe('model store (Q1, PRD Q1)', () => {
     await expect(fetchModel(file, options(offline))).rejects.toMatchObject({ code: 'voice-download-failed', detail: expect.stringContaining('Failed to fetch') });
   });
 
+  it('rejects an HTML page served with HTTP 200 for a missing model, and does not cache it', async () => {
+    const { files, directory, file } = setup();
+    const indexPage = jest.fn(async () => new Response('<!doctype html><title>demo</title>', { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } })) as unknown as typeof fetch;
+    await expect(fetchModel(file, { directory, fetcher: indexPage, onProgress: jest.fn(), onWarning: jest.fn() }))
+      .rejects.toMatchObject({ code: 'voice-unavailable', detail: expect.stringContaining('HTML page') });
+    expect(files.size).toBe(0);
+  });
+
   it('rejects a download whose SHA-256 does not match', async () => {
     const { directory, fetcher, file } = setup();
     const options = { directory, fetcher, onProgress: jest.fn(), onWarning: jest.fn() };
