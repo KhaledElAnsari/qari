@@ -1,5 +1,8 @@
-/** Q1 demo: prepare Male/Female sound in default or accelerated mode, read a sentence. `?voice-base=<url>` loads configs from elsewhere. */
-import { createReader, loadVoiceConfig, MODE_LABELS, probeDevice, QariError } from '@khaledelansari/qari-core';
+/**
+ * Demo: prepare Male/Female sound in default or accelerated mode, read a sentence. `?voice-base=<url>` loads configs from elsewhere.
+ * Also checks that the model files are on the server and can clear the saved voice files (OPFS).
+ */
+import { clearVoiceCache, createReader, loadVoiceConfig, MODE_LABELS, probeDevice, QariError } from '@khaledelansari/qari-core';
 import type { Backend, LoadProgress, Reader, VoiceConfig } from '@khaledelansari/qari-core';
 import '@khaledelansari/qari-element';
 
@@ -23,6 +26,9 @@ const elements = {
   stop: $<HTMLButtonElement>('stop'),
   playback: $('playback'),
   log: $('log'),
+  filesNotice: $('files-notice'),
+  clearCache: $<HTMLButtonElement>('clear-cache'),
+  cacheStatus: $('cache-status'),
 };
 
 let voices: VoiceConfig[] = [];
@@ -45,11 +51,88 @@ function showError(error: unknown): void {
   );
   elements.message.hidden = false;
   log(`error ${qariError.code}: ${qariError.detail ?? ''}`);
+  if (qariError.code === 'voice-unavailable') void explainUnavailableVoice();
 }
 
 const clearError = () => {
   elements.message.hidden = true;
+  elements.filesNotice.hidden = true;
 };
+
+/** Model URLs of every listed voice, plus the ones typed in the developer boxes, once each. */
+function modelUrls(): string[] {
+  const urls = voices.flatMap(voice => [voice.model.url, voice.vocoder?.url]);
+  urls.push(elements.modelUrl.value, elements.vocoderUrl.value);
+  return [...new Set(urls.filter((url): url is string => Boolean(url)).map(url => new URL(url, voiceBase).href))];
+}
+
+/**
+ * Asks the server for each model file without downloading it. Dev servers and SPA hosts answer a missing file with
+ * their index page, so an HTML answer counts as missing too. Servers that refuse HEAD are given the benefit of the doubt.
+ */
+async function missingModelFiles(): Promise<string[]> {
+  const results = await Promise.all(modelUrls().map(async (url) => {
+    try {
+      const response = await fetch(url, { method: 'HEAD', cache: 'no-store' });
+      const isPage = response.headers.get('content-type')?.toLowerCase().includes('text/html') ?? false;
+      return response.status === 404 || response.status === 410 || (response.ok && isPage) ? url : null;
+    }
+    catch {
+      return null;
+    }
+  }));
+  return results.filter((url): url is string => url !== null);
+}
+
+/** Developer note on the page: which files are missing, and how to get them. */
+function showMissingFiles(missing: string[]): void {
+  const names = missing.map(url => decodeURIComponent(url.split('/').pop() ?? url));
+  for (const url of missing) log(`model file missing on the server: ${url}`);
+  const list = Object.assign(document.createElement('p'), { textContent: `Missing voice files: ${names.join(', ')}.` });
+  const fix = document.createElement('p');
+  fix.innerHTML = 'Put them in <code>voices/models/</code> (see <code>voices/models/README.md</code>), or run <code>npm run fetch-models</code>, then press Prepare voice again.';
+  elements.filesNotice.replaceChildren(list, fix);
+  elements.filesNotice.hidden = false;
+}
+
+/** After "voice unavailable": either the files are missing, or this browser saved a broken copy earlier. */
+async function explainUnavailableVoice(): Promise<void> {
+  const missing = await missingModelFiles();
+  if (missing.length > 0) {
+    showMissingFiles(missing);
+    return;
+  }
+  const note = Object.assign(document.createElement('p'), { textContent: 'The voice files are on the server, so this browser may have saved a broken copy earlier (for example, from before the files were added).' });
+  const button = Object.assign(document.createElement('button'), { type: 'button', textContent: 'Clear saved voice files and prepare again' });
+  button.addEventListener('click', () => void clearCache().then(async (cleared) => {
+    if (cleared) await prepare();
+  }));
+  elements.filesNotice.replaceChildren(note, button);
+  elements.filesNotice.hidden = false;
+}
+
+/** Deletes the saved voice files; the reader is closed first so its Worker lets go of them. Resolves true when cleared. */
+async function clearCache(): Promise<boolean> {
+  elements.clearCache.disabled = true;
+  elements.play.disabled = true;
+  try {
+    await reader?.dispose();
+    reader = null;
+    elements.progress.value = 0;
+    elements.stage.textContent = 'Not loaded';
+    const cleared = await clearVoiceCache();
+    elements.cacheStatus.textContent = cleared ? 'Deleted. The next prepare downloads the voice again.' : 'This browser can\'t save voice files here, so there is nothing to delete.';
+    log(cleared ? 'saved voice files deleted' : 'no voice cache (OPFS unavailable)');
+    return cleared;
+  }
+  catch (error) {
+    showError(error);
+    return false;
+  }
+  finally {
+    elements.clearCache.disabled = false;
+  }
+}
 
 function showProgress(progress: LoadProgress): void {
   if (progress.stage === 'downloading') {
@@ -90,6 +173,8 @@ async function loadVoices(): Promise<void> {
   }
   elements.modelUrl.value = defaultVoice.model.url;
   elements.vocoderUrl.value = defaultVoice.vocoder?.url ?? '';
+  const missing = await missingModelFiles();
+  if (missing.length > 0) showMissingFiles(missing);
 }
 
 async function prepare(): Promise<void> {
@@ -181,6 +266,7 @@ elements.prepare.addEventListener('click', () => void prepare());
 elements.play.addEventListener('click', () => void play());
 elements.stop.addEventListener('click', () => reader?.stop());
 elements.mode.addEventListener('change', () => void switchMode());
+elements.clearCache.addEventListener('click', () => void clearCache());
 elements.isolated.textContent = String(globalThis.crossOriginIsolated);
 
 void probeDevice().then((probe) => {

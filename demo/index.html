@@ -3,62 +3,138 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>قارئ — تجربة</title>
+  <title>قارئ · Qari</title>
   <style>
-    :root { color-scheme: light dark; font-family: system-ui, "Noto Naskh Arabic", "Geeza Pro", sans-serif; }
-    body { max-width: 46rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.6; }
-    fieldset { border: 1px solid color-mix(in srgb, currentColor 25%, transparent); border-radius: .5rem; margin-block: 1rem; }
-    textarea { width: 100%; min-height: 6rem; font-size: 1.4rem; line-height: 2.2; box-sizing: border-box; }
-    input[type="url"] { width: 100%; box-sizing: border-box; direction: ltr; }
-    button { font: inherit; padding: .4rem 1rem; }
-    progress { width: 100%; }
-    .status { font-size: .9rem; opacity: .85; }
-    .message { border-inline-start: .25rem solid #b3261e; padding-inline-start: .75rem; }
+    :root {
+      color-scheme: light dark;
+      --ink: #1d1b16; --muted: #6b665c; --paper: #faf8f3; --card: #ffffff; --line: #e4dfd3;
+      --accent: #0f6b5c; --accent-ink: #ffffff; --accent-soft: #e2f1ed;
+      --danger: #b3261e; --danger-soft: #fbeceb; --note: #8a5a00; --note-soft: #fdf3dc;
+      --radius: .75rem;
+      font-family: system-ui, "Noto Naskh Arabic", "Geeza Pro", sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --ink: #ece8df; --muted: #a39d90; --paper: #16150f; --card: #201f19; --line: #36342b;
+        --accent: #5cc3ae; --accent-ink: #0b1f1b; --accent-soft: #17302a;
+        --danger: #f2b8b5; --danger-soft: #3a1a18; --note: #f0c565; --note-soft: #33290f;
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink); line-height: 1.6; }
+    main { max-width: 44rem; margin: 0 auto; padding: 2.5rem 1rem 4rem; }
+
+    header { margin-block-end: 1.75rem; }
+    h1 { font-size: 2.6rem; margin: 0; line-height: 1.2; }
+    h1 small { font-size: .85rem; font-weight: 500; color: var(--muted); margin-inline-start: .5rem; }
+    .tagline { margin: .25rem 0 0; color: var(--muted); }
+    .tagline span { display: block; }
+
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.25rem; margin-block: 1rem; }
+    .card h2 { font-size: 1.05rem; margin: 0 0 1rem; display: flex; gap: .6rem; align-items: center; }
+    .step { display: inline-grid; place-items: center; width: 1.7rem; height: 1.7rem; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-size: .9rem; }
+    .en { color: var(--muted); font-weight: 400; }
+
+    .row { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; }
+    .field { display: grid; gap: .3rem; margin-block-end: 1rem; }
+    .field > span { font-size: .9rem; color: var(--muted); }
+
+    #voices { display: flex; flex-wrap: wrap; gap: .5rem; }
+    #voices label { border: 1px solid var(--line); border-radius: 999px; padding: .35rem .9rem; cursor: pointer; }
+    #voices label:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+    #voices input { accent-color: var(--accent); margin: 0 0 0 .4rem; }
+
+    select, textarea, input[type="url"] { font: inherit; color: inherit; background: var(--paper); border: 1px solid var(--line); border-radius: .5rem; padding: .45rem .6rem; }
+    select { max-width: 100%; }
+    textarea { width: 100%; min-height: 8rem; font-size: 1.45rem; line-height: 2.2; resize: vertical; }
+    input[type="url"] { width: 100%; direction: ltr; font-size: .85rem; }
+
+    button { font: inherit; border-radius: .5rem; padding: .5rem 1.1rem; border: 1px solid var(--line); background: var(--card); color: inherit; cursor: pointer; }
+    button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+
+    progress { width: 100%; height: .4rem; accent-color: var(--accent); margin-block-start: 1rem; }
+    .status { font-size: .9rem; color: var(--muted); margin: .4rem 0 0; }
+    .hint { font-size: .85rem; color: var(--muted); margin: .5rem 0 0; }
+
+    .message, .notice { border-radius: .5rem; padding: .7rem .9rem; margin: .9rem 0 0; }
+    .message { background: var(--danger-soft); border-inline-start: .25rem solid var(--danger); }
     .message span { display: block; }
-    #log { font: .8rem/1.4 ui-monospace, monospace; direction: ltr; text-align: left; white-space: pre-wrap; }
+    .notice { background: var(--note-soft); border-inline-start: .25rem solid var(--note); direction: ltr; text-align: left; font-size: .9rem; }
+    .notice p { margin: 0 0 .5rem; }
+    .notice p:last-child { margin: 0; }
+    .notice code { font-size: .85em; }
+
+    details.dev { margin-block-start: 2rem; }
+    details.dev > summary { cursor: pointer; color: var(--muted); }
+    details.dev .card { direction: ltr; text-align: left; font-size: .9rem; }
+    .dev dl { display: grid; grid-template-columns: max-content 1fr; gap: .25rem 1rem; margin: 0 0 1rem; }
+    .dev dt { color: var(--muted); }
+    .dev dd { margin: 0; }
+    #log { font: .8rem/1.5 ui-monospace, monospace; white-space: pre-wrap; background: var(--paper); border: 1px solid var(--line); border-radius: .5rem; padding: .6rem; min-height: 3rem; max-height: 16rem; overflow: auto; }
   </style>
 </head>
 <body>
-  <h1>قارئ <small class="status">Q1 demo</small></h1>
+<main>
+  <header>
+    <h1>قارئ <small>تجربة · demo</small></h1>
+    <p class="tagline">
+      <span>الصق نصًّا عربيًّا واستمع إليه، والقراءة كلّها على جهازك.</span>
+      <span lang="en" dir="ltr">Paste Arabic text and hear it read aloud, entirely on your device.</span>
+    </p>
+  </header>
 
-  <p class="status">
-    <span>Accelerated-mode probe: <strong id="probe" data-testid="probe">…</strong></span> ·
-    <span>Cross-origin isolated: <strong id="isolated" data-testid="isolated">…</strong></span>
-  </p>
-
-  <fieldset>
-    <legend>الصوت · Voice</legend>
-    <div id="voices" role="radiogroup" aria-label="Voice"></div>
-    <details>
-      <summary>Model URLs</summary>
-      <label>Acoustic model <input id="model-url" type="url"></label>
-      <label>Vocoder <input id="vocoder-url" type="url"></label>
-    </details>
-    <label>طريقة التشغيل · Mode
+  <section class="card" aria-labelledby="voice-heading">
+    <h2 id="voice-heading"><span class="step">١</span> الصوت <span class="en">· Voice</span></h2>
+    <div class="field">
+      <span>اختر صوتًا · Choose a voice</span>
+      <div id="voices" role="radiogroup" aria-label="Voice"></div>
+    </div>
+    <label class="field">
+      <span>طريقة التشغيل · Mode</span>
       <select id="backend" data-testid="mode">
         <option value="wasm" selected></option>
         <option value="webgpu"></option>
       </select>
     </label>
-    <p><button id="prepare" type="button">جهّز الصوت · Prepare voice</button></p>
+    <button id="prepare" class="primary" type="button">جهّز الصوت · Prepare voice</button>
     <progress id="progress" max="1" value="0" aria-label="Voice download"></progress>
     <p class="status" id="stage" data-testid="stage" aria-live="polite">Not loaded</p>
     <p class="message" id="message" data-testid="message" role="alert" hidden></p>
-  </fieldset>
+    <div class="notice" id="files-notice" data-testid="files-notice" hidden></div>
+  </section>
 
-  <label for="text">النص · Text</label>
-  <textarea id="text">اَلسَّلامُ عَلَيكُم يَا صَدِيقِي، هَذَا قَارِئٌ يَقْرَأُ النُّصُوصَ بِصَوْتٍ وَاضِحٍ.</textarea>
-  <p>
-    <button id="play" type="button" disabled>▶ اقرأ · Read</button>
-    <button id="stop" type="button" disabled>■ أوقف · Stop</button>
-    <span class="status" id="playback" data-testid="playback"></span>
-  </p>
+  <section class="card" aria-labelledby="text-heading">
+    <h2 id="text-heading"><span class="step">٢</span> النص <span class="en">· Text</span></h2>
+    <textarea id="text" aria-labelledby="text-heading">اَلسَّلامُ عَلَيكُم يَا صَدِيقِي، هَذَا قَارِئٌ يَقْرَأُ النُّصُوصَ بِصَوْتٍ وَاضِحٍ.</textarea>
+    <p class="hint">النص المشكول يُقرأ أوضح · Diacritized text is read more accurately.</p>
+    <div class="row" style="margin-block-start: .9rem">
+      <button id="play" class="primary" type="button" disabled>▶ اقرأ · Read</button>
+      <button id="stop" type="button" disabled>■ أوقف · Stop</button>
+      <span class="status" id="playback" data-testid="playback"></span>
+    </div>
+  </section>
 
   <qari-reader hidden></qari-reader>
 
-  <h2 class="status">Log</h2>
-  <div id="log" data-testid="log"></div>
-
-  <script type="module" src="./main.ts"></script>
+  <details class="dev">
+    <summary>للمطوّرين · For developers</summary>
+    <div class="card">
+      <dl>
+        <dt>Accelerated-mode probe</dt><dd id="probe" data-testid="probe">…</dd>
+        <dt>Cross-origin isolated</dt><dd id="isolated" data-testid="isolated">…</dd>
+      </dl>
+      <label class="field"><span>Acoustic model URL</span><input id="model-url" type="url"></label>
+      <label class="field"><span>Vocoder URL</span><input id="vocoder-url" type="url"></label>
+      <div class="row">
+        <button id="clear-cache" type="button" data-testid="clear-cache">Clear saved voice files</button>
+        <span class="status" id="cache-status" data-testid="cache-status" aria-live="polite"></span>
+      </div>
+      <p class="field" style="margin: 1rem 0 .3rem"><span>Log</span></p>
+      <div id="log" data-testid="log"></div>
+    </div>
+  </details>
+</main>
+<script type="module" src="./main.ts"></script>
 </body>
 </html>
