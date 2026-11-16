@@ -1,0 +1,23 @@
+{
+  "name": "@khaledelansari/qari-core",
+  "version": "0.0.0",
+  "description": "Headless engine for قارئ: reads Arabic text aloud in the browser with word timings.",
+  "type": "module",
+  "license": "SEE LICENSE IN README",
+  "author": "Khaled ElAnsari",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
+    "./timing-file.schema.json": "./schemas/timing-file.schema.json"
+  },
+  "files": ["dist", "schemas"],
+  "scripts": {
+    "build": "vite build && tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "onnxruntime-web": "~1.31.1"
+  }
+}

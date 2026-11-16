@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>قارئ — تجربة</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, "Noto Naskh Arabic", "Geeza Pro", sans-serif; }
+    body { max-width: 46rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.6; }
+    fieldset { border: 1px solid color-mix(in srgb, currentColor 25%, transparent); border-radius: .5rem; margin-block: 1rem; }
+    textarea { width: 100%; min-height: 6rem; font-size: 1.4rem; line-height: 2.2; box-sizing: border-box; }
+    input[type="url"] { width: 100%; box-sizing: border-box; direction: ltr; }
+    button { font: inherit; padding: .4rem 1rem; }
+    progress { width: 100%; }
+    .status { font-size: .9rem; opacity: .85; }
+    .message { border-inline-start: .25rem solid #b3261e; padding-inline-start: .75rem; }
+    .message span { display: block; }
+    #log { font: .8rem/1.4 ui-monospace, monospace; direction: ltr; text-align: left; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>قارئ <small class="status">Q1 demo</small></h1>
+
+  <p class="status">
+    <span>Accelerated-mode probe: <strong id="probe" data-testid="probe">…</strong></span> ·
+    <span>Cross-origin isolated: <strong id="isolated" data-testid="isolated">…</strong></span>
+  </p>
+
+  <fieldset>
+    <legend>الصوت · Voice</legend>
+    <div id="voices" role="radiogroup" aria-label="Voice"></div>
+    <details>
+      <summary>Model URLs</summary>
+      <label>Acoustic model <input id="model-url" type="url"></label>
+      <label>Vocoder <input id="vocoder-url" type="url"></label>
+    </details>
+    <label>طريقة التشغيل · Mode
+      <select id="backend" data-testid="mode">
+        <option value="wasm" selected></option>
+        <option value="webgpu"></option>
+      </select>
+    </label>
+    <p><button id="prepare" type="button">جهّز الصوت · Prepare voice</button></p>
+    <progress id="progress" max="1" value="0" aria-label="Voice download"></progress>
+    <p class="status" id="stage" data-testid="stage" aria-live="polite">Not loaded</p>
+    <p class="message" id="message" data-testid="message" role="alert" hidden></p>
+  </fieldset>
+
+  <label for="text">النص · Text</label>
+  <textarea id="text">اَلسَّلامُ عَلَيكُم يَا صَدِيقِي، هَذَا قَارِئٌ يَقْرَأُ النُّصُوصَ بِصَوْتٍ وَاضِحٍ.</textarea>
+  <p>
+    <button id="play" type="button" disabled>▶ اقرأ · Read</button>
+    <button id="stop" type="button" disabled>■ أوقف · Stop</button>
+    <span class="status" id="playback" data-testid="playback"></span>
+  </p>
+
+  <qari-reader hidden></qari-reader>
+
+  <h2 class="status">Log</h2>
+  <div id="log" data-testid="log"></div>
+
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>

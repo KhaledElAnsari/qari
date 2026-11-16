@@ -1,0 +1,33 @@
+# qari demo on Apache or LiteSpeed (Hostinger web hosting and most shared hosts).
+# Goes next to index.html; the Hostinger deploy workflow copies it there. See docs/deployment.md.
+# Every block is optional: a host without a module skips that block instead of failing.
+
+# onnxruntime's engine must be served as WebAssembly; voice files as plain binary.
+AddType application/wasm .wasm
+AddType application/octet-stream .onnx
+
+<IfModule mod_headers.c>
+  # Cross-origin isolation: lets default mode use several CPU threads. Delete both lines to run single-threaded.
+  # If they don't show up in the browser, a CDN in front of the site may be dropping them (docs/deployment.md).
+  Header set Cross-Origin-Opener-Policy "same-origin"
+  Header set Cross-Origin-Embedder-Policy "credentialless"
+  Header set X-Content-Type-Options "nosniff"
+
+  # Built files carry a content hash in their name, so they never change: cache them for a year.
+  <FilesMatch "-[A-Za-z0-9_-]{8}\.(js|wasm)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+  # The page and the voice configs: always check for a newer copy, so a deploy shows up at once.
+  <FilesMatch "(\.html|\.json)$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+  # Voice files: the reader keeps its own copy (keyed by URL + version), so a day of HTTP caching is enough.
+  <FilesMatch "\.onnx$">
+    Header set Cache-Control "public, max-age=86400"
+  </FilesMatch>
+</IfModule>
+
+# Compression shrinks the 28.7 MB engine to about 7 MB on the wire. LiteSpeed compresses on its own; Apache needs this.
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html application/javascript text/javascript application/json application/wasm
+</IfModule>

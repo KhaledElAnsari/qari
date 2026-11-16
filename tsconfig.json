@@ -1,0 +1,13 @@
+// Type-checks the whole repo in one pass (npm run typecheck). Builds use each package's tsconfig.build.json.
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["@webgpu/types", "jest", "node"],
+    "paths": {
+      "@khaledelansari/qari-core": ["./packages/qari-core/src/index.ts"],
+      "@khaledelansari/qari-element": ["./packages/qari-element/src/index.ts"]
+    }
+  },
+  "include": ["./packages/*/src", "packages/*/*.config.ts", "demo", "tests", "tools", "*.config.ts"]
+}

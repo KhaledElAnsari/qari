@@ -1,0 +1,29 @@
+{
+  "name": "@khaledelansari/qari-element",
+  "version": "0.0.0",
+  "description": "<qari-reader> Web Component for قارئ: a drop-in reader with word-by-word read-along.",
+  "type": "module",
+  "license": "SEE LICENSE IN README",
+  "author": "Khaled ElAnsari",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "vite build && tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "@khaledelansari/qari-core": "0.0.0"
+  },
+  "sideEffects": [
+    "./dist/index.js"
+  ]
+}

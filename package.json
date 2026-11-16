@@ -1,0 +1,41 @@
+{
+  "name": "qari-monorepo",
+  "private": true,
+  "description": "قارئ (Qari): in-browser Arabic reader with word-by-word read-along.",
+  "type": "module",
+  "workspaces": [
+    "packages/qari-core",
+    "packages/qari-element"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "prepare": "git config core.hooksPath .githooks || true",
+    "dev": "vite --config demo/vite.config.ts",
+    "build": "npm run build --workspaces && vite build --config demo/vite.config.ts",
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "jest",
+    "test:browser": "playwright test",
+    "check": "npm run lint && npm run typecheck && npm test && npm run build",
+    "fetch-models": "node tools/fetch-models.ts"
+  },
+  "lint-staged": {
+    "*.{ts,js,mjs,cjs}": "eslint --fix"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.65.1",
+    "@stylistic/eslint-plugin": "^6.0.1",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^24.0.0",
+    "@webgpu/types": "^0.1.60",
+    "eslint": "^10.15.0",
+    "jest": "^30.5.2",
+    "lint-staged": "^16.2.0",
+    "ts-jest": "^29.4.15",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.72.2",
+    "vite": "^8.3.8"
+  }
+}

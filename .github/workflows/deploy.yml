@@ -1,0 +1,114 @@
+# Builds the demo once and deploys it to every target you switched on. Runs on push to main, or by hand
+# (Actions → Deploy → Run workflow). CI runs first; nothing deploys unless it passes. See docs/deployment.md.
+#
+# Targets (repository variables under Settings → Secrets and variables → Actions):
+#   GitHub Pages: QARI_DEPLOY_PAGES = true, and Settings → Pages → Source: GitHub Actions
+#   Hostinger (or any host with SSH + rsync): variables HOSTINGER_HOST, HOSTINGER_USER, HOSTINGER_PATH
+#     (HOSTINGER_PORT, default 65002), secrets HOSTINGER_SSH_KEY and HOSTINGER_KNOWN_HOSTS
+# Voice files come from a release of this repo, tag QARI_MODELS_TAG (default models-v1).
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One deploy at a time; a newer push waits instead of cancelling a deploy halfway.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  build:
+    needs: ci
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Download voice files from the release
+        run: npm run fetch-models
+        env:
+          QARI_MODELS_BASE_URL: https://github.com/${{ github.repository }}/releases/download/${{ vars.QARI_MODELS_TAG || 'models-v1' }}/
+      - run: npm run build
+      - uses: actions/upload-artifact@v7
+        with:
+          name: site
+          path: demo/dist
+          retention-days: 7
+      - if: vars.QARI_DEPLOY_PAGES == 'true'
+        uses: actions/configure-pages@v6
+      - if: vars.QARI_DEPLOY_PAGES == 'true'
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: demo/dist
+
+  pages:
+    needs: build
+    if: vars.QARI_DEPLOY_PAGES == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
+
+  hostinger:
+    needs: build
+    if: vars.HOSTINGER_HOST != ''
+    runs-on: ubuntu-latest
+    environment:
+      name: hostinger
+    env:
+      HOST: ${{ vars.HOSTINGER_HOST }}
+      PORT: ${{ vars.HOSTINGER_PORT || '65002' }}
+      DEPLOY_USER: ${{ vars.HOSTINGER_USER }}
+      DEPLOY_PATH: ${{ vars.HOSTINGER_PATH }}
+    steps:
+      # Only the .htaccess comes from the repo; everything else is the build.
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: deploy/apache
+      - uses: actions/download-artifact@v8
+        with:
+          name: site
+          path: site
+      - name: Add the Apache/LiteSpeed settings (headers, wasm type, caching)
+        run: cp deploy/apache/.htaccess site/.htaccess
+      - name: Set up the SSH key
+        env:
+          SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          test -n "$DEPLOY_USER" && test -n "$DEPLOY_PATH" || { echo "::error::Set HOSTINGER_USER and HOSTINGER_PATH."; exit 1; }
+          case "$DEPLOY_PATH" in /*) ;; *) echo "::error::HOSTINGER_PATH must be absolute, e.g. /home/u123/domains/example.com/public_html/qari"; exit 1;; esac
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/deploy_key" && chmod 600 "$HOME/.ssh/deploy_key"
+          if [ -n "$KNOWN_HOSTS" ]; then
+            printf '%s\n' "$KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          else
+            echo "::warning::HOSTINGER_KNOWN_HOSTS is not set; trusting the server key seen now. Set the secret to pin it."
+            ssh-keyscan -p "$PORT" "$HOST" > "$HOME/.ssh/known_hosts"
+          fi
+      # --delete mirrors the build, so HOSTINGER_PATH must be a folder used only by qari.
+      # Paths use $HOME, not ~: a ~ inside quotes is never expanded and ssh would look elsewhere.
+      # .well-known is kept for HTTPS certificate checks.
+      - name: Upload with rsync
+        run: |
+          rsync -az --delete --exclude '.well-known' \
+            -e "ssh -p $PORT -i $HOME/.ssh/deploy_key -o IdentitiesOnly=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts" \
+            site/ "$DEPLOY_USER@$HOST:$DEPLOY_PATH/"
+          echo "Deployed to $DEPLOY_PATH on $HOST."

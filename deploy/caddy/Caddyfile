@@ -1,0 +1,39 @@
+# qari demo on a VM with Caddy: HTTPS certificates are automatic. See docs/deployment.md.
+# 1. Copy demo/dist/ to /var/www/qari.  2. Replace reader.example.com with your domain (DNS pointing at the VM).
+# 3. Put this in /etc/caddy/Caddyfile (or import it from there).  4. sudo systemctl reload caddy
+
+reader.example.com {
+	root * /var/www/qari
+	file_server
+
+	# The 28.7 MB engine is about 7 MB compressed. application/wasm is listed because older Caddy versions skip it.
+	encode {
+		zstd
+		gzip
+		match {
+			header Content-Type text/*
+			header Content-Type application/javascript*
+			header Content-Type application/json*
+			header Content-Type application/wasm*
+		}
+	}
+
+	# Cross-origin isolation: lets default mode use several CPU threads. Delete both lines to run single-threaded.
+	header {
+		Cross-Origin-Opener-Policy same-origin
+		Cross-Origin-Embedder-Policy credentialless
+		X-Content-Type-Options nosniff
+	}
+
+	# Built files carry a content hash in their name, so they never change: cache them for a year.
+	@hashed path_regexp -[A-Za-z0-9_-]{8}\.(js|wasm)$
+	header @hashed Cache-Control "public, max-age=31536000, immutable"
+
+	# The page and the voice configs: always check for a newer copy, so a deploy shows up at once.
+	@fresh path / *.html *.json
+	header @fresh Cache-Control "no-cache"
+
+	# Voice files: the reader keeps its own copy (keyed by URL + version), so a day of HTTP caching is enough.
+	@models path *.onnx
+	header @models Cache-Control "public, max-age=86400"
+}

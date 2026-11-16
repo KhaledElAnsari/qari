@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "قارئ / Maqroo2 timing file",
+  "description": "Word timings for one audio file (PRD 5.4). Times in seconds, 3 decimals.",
+  "type": "object",
+  "required": ["audio", "duration", "words", "displayWords"],
+  "additionalProperties": false,
+  "properties": {
+    "page": { "type": "integer", "minimum": 0 },
+    "audio": { "type": "string", "minLength": 1 },
+    "duration": { "type": "number", "minimum": 0 },
+    "words": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["index", "displayIndex", "text", "start", "end", "spoken"],
+        "additionalProperties": false,
+        "properties": {
+          "index": { "type": "integer", "minimum": 0 },
+          "displayIndex": { "type": "integer", "minimum": 0 },
+          "text": { "type": "string" },
+          "said": { "type": "string" },
+          "start": { "type": "number", "minimum": 0 },
+          "end": { "type": "number", "minimum": 0 },
+          "spoken": { "type": "boolean" }
+        }
+      }
+    },
+    "displayWords": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["displayIndex", "text", "start", "end", "spokenIndexes"],
+        "additionalProperties": false,
+        "properties": {
+          "displayIndex": { "type": "integer", "minimum": 0 },
+          "text": { "type": "string" },
+          "start": { "type": "number", "minimum": 0 },
+          "end": { "type": "number", "minimum": 0 },
+          "spokenIndexes": { "type": "array", "items": { "type": "integer", "minimum": 0 } }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,3 @@
+#!/bin/sh
+# Typecheck + unit tests before pushing. Skip once with: git push --no-verify
+npm run typecheck && npm test
