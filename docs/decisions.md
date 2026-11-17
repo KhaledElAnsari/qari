@@ -119,6 +119,12 @@ This workspace has no real voice files and no Safari, so these are open:
 
 ## Not built yet (by milestone)
 
+## Licence and credit (Khaled, 2026-11-17)
+
+- **Code: Apache-2.0 with a NOTICE file**, not a non-commercial licence. The packages ship no models, qari works with any voice, and a non-commercial code licence would only block people bringing commercially licensed voices. Apache-2.0 requires redistributors to keep the NOTICE file ("This product includes قارئ (Qari) by …"). `LICENSE` and `NOTICE` are added once the public repo exists (the NOTICE needs its URL).
+- **Visible credit by default:** `<qari-reader>` shows `<qari-credit>` ("يعمل بـ قارئ" / "Powered by Qari · قارئ", following the page's or its own `lang`); `credit="off"` hides it. `<qari-credit>` is exported for hosts that use `qari-core` directly. It links to `QARI_HOMEPAGE` (`qari-credit.element.ts`), empty until the repo exists, so it's plain text for now. The credit is a request, not a licence term.
+- **Models stay non-commercial** (nipponjo); the README says so next to the licence.
+
 ## Q3: normalization (started 2026-11-17, numbers first)
 
 - [Certain] **Numbers → words** (`normalization/arabic-numbers.ts`), ported and extended from Maqroo2's `ar_numbers.py`: 0 to 999,999,999,999 with Arabic counting rules (أَلْفٍ / أَلْفَيْنِ / ثَلَاثَةِ آلَافٍ / أَحَدَ عَشَرَ أَلْفًا / مِئَةِ أَلْفٍ, the same for millions and billions); Western, Arabic-Indic and Persian digits; thousands separators (`1,500`, `١٬٥٠٠`); decimals (`3.5`, `٢٫٠٥` → "… فَاصِلَة …", a fraction with a leading zero read digit by digit); percent (`50%`, `٥٠٪` → "… بِالمِئَةِ"). A leading zero or a number above the range is read digit by digit (phone numbers, codes). A prefix written onto a number stays on its first word (وَ12 → وَاثْنَيْ عَشَرَ, hamzat al-wasl's kasra dropped); punctuation after it stays on its last word, so pauses don't move.
