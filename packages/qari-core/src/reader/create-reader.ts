@@ -66,6 +66,11 @@ export interface Reader {
    * Rejects with a QariError (also emitted as `error`); calling speak again is the retry.
    */
   speak(text: string, options?: { pace?: number }): Promise<void>;
+  /**
+   * Plays audio made earlier by synthesize() (e.g. to show its timings before playing, or to play it again) without
+   * making it again. Call from a click, like speak(). Emits the same events as speak().
+   */
+  play(synthesis: Synthesis): Promise<void>;
   stop(): void;
   /** Seconds into the audio being heard now, or null when nothing is playing. */
   position(): number | null;
@@ -207,6 +212,32 @@ export async function createReader(options: ReaderOptions): Promise<Reader> {
     return () => pending.cancel();
   };
 
+  /**
+   * Plays audio, made now or earlier, and follows its words: the shared body of speak() and play(). Starting again,
+   * or stop(), ends the previous run. Callers unlock the player first, while the user's gesture still counts.
+   */
+  const perform = async (getAudio: () => Promise<Synthesis>): Promise<void> => {
+    const run = ++speakRun;
+    player.stop();
+    let stopFollowing: (() => void) | null = null;
+    try {
+      const audio = await getAudio();
+      if (run !== speakRun) return;
+      setState('playing');
+      if (audio.timings) events.emit('timings', audio.timings);
+      const playing = player.play(audio.pcm, audio.sampleRate);
+      stopFollowing = audio.timings ? followWords(audio.timings, run) : null;
+      await playing;
+    }
+    catch (error) {
+      throw fail(error, 'reading-failed');
+    }
+    finally {
+      stopFollowing?.();
+      if (run === speakRun && state === 'playing') setState('ready');
+    }
+  };
+
   const reader: Reader = {
     get voice() {
       return voice;
@@ -219,29 +250,17 @@ export async function createReader(options: ReaderOptions): Promise<Reader> {
     },
     on: (name, listener) => events.on(name, listener),
     off: (name, listener) => events.off(name, listener),
-    async speak(text, speakOptions) {
+    speak(text, speakOptions) {
       // Must run before any await so the browser still sees the user's gesture.
       player.unlock();
-      const run = ++speakRun;
-      player.stop();
-      let stopFollowing: (() => void) | null = null;
-      try {
+      return perform(async () => {
         if (text.trim() === '') throw new QariError('nothing-to-read', 'Empty text.');
-        const audio = await synthesize(text, speakOptions);
-        if (run !== speakRun) return;
-        setState('playing');
-        if (audio.timings) events.emit('timings', audio.timings);
-        const playing = player.play(audio.pcm, audio.sampleRate);
-        stopFollowing = audio.timings ? followWords(audio.timings, run) : null;
-        await playing;
-      }
-      catch (error) {
-        throw fail(error, 'reading-failed');
-      }
-      finally {
-        stopFollowing?.();
-        if (run === speakRun && state === 'playing') setState('ready');
-      }
+        return synthesize(text, speakOptions);
+      });
+    },
+    play(synthesis) {
+      player.unlock();
+      return perform(async () => synthesis);
     },
     stop() {
       speakRun++;
