@@ -11,5 +11,5 @@ export type { FriendlyText, QariErrorCode } from './errors/qari-error';
 export type { LoadProgress, LoadStage } from './worker/worker-protocol';
 export type { DisplayWordTiming, SpokenWordTiming, TimingFile } from './timings/timing-file';
 export { splitDisplayWords } from './timings/word-timings';
-export type { DisplayWord, WordTimings } from './timings/word-timings';
+export type { DisplayWord, WordTimings, WordTimingStats } from './timings/word-timings';
 export { arabicToTokens, phonemesToTokens, tokensToIds } from './frontends/arabic-phonetiser/tokenize';

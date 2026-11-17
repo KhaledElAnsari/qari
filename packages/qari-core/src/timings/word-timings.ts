@@ -11,6 +11,16 @@ export interface DisplayWord {
   charEnd: number;
 }
 
+/** A summary of one reading, worked out from its word timings (not part of the timing file). */
+export interface WordTimingStats {
+  /** Words that are heard; words the voice can't read are not counted. */
+  words: number;
+  /** Heard words per minute over the whole audio, pauses included (one decimal). */
+  wordsPerMinute: number;
+  /** Percent of the audio during which no word is heard: gaps between words, punctuation pauses, silence at the ends (one decimal). */
+  pausePercent: number;
+}
+
 /** Word timings for one piece of text; the same shapes as the timing file (PRD 5.4), plus where each word sits in the text. */
 export interface WordTimings {
   /** Seconds of audio. */
@@ -19,6 +29,7 @@ export interface WordTimings {
   displayWords: DisplayWordTiming[];
   /** Per display word, its place in the text (same order as `displayWords`). */
   ranges: { charStart: number; charEnd: number }[];
+  stats: WordTimingStats;
 }
 
 export interface WordTimingsInput {
@@ -120,10 +131,21 @@ export function computeWordTimings(input: WordTimingsInput): WordTimings | { pro
     return { displayIndex: word.displayIndex, text: word.text, start, end, spokenIndexes };
   });
 
+  const heardGroups = groups.filter(group => group.spoken);
+  const heardFrames = heardGroups.reduce((sum, group) => sum + group.end - group.start, 0);
+  const minutes = (frame * secondsPerFrame) / 60;
+  const oneDecimal = (value: number) => Math.round(value * 10) / 10;
+  const stats: WordTimingStats = {
+    words: heardGroups.length,
+    wordsPerMinute: minutes > 0 ? oneDecimal(heardGroups.length / minutes) : 0,
+    pausePercent: frame > 0 ? oneDecimal((1 - heardFrames / frame) * 100) : 0,
+  };
+
   return {
     duration: seconds(frame, secondsPerFrame),
     words,
     displayWords: timedDisplayWords,
     ranges: displayWords.map(({ charStart, charEnd }) => ({ charStart, charEnd })),
+    stats,
   };
 }

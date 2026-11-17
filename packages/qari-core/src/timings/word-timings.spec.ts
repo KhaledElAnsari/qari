@@ -61,6 +61,19 @@ describe('word timings (Q4)', () => {
     expect(starts).toEqual([...starts].sort((a, b) => a - b));
   });
 
+  it('summarises the reading: heard words, words per minute and the share of pauses', () => {
+    // Two words of 3 tokens each (b a + separator): sounds 2 + 2 frames, separator 6 frames, then end of sequence 10.
+    const tokens = ['b', 'a', SEPARATOR_TOKEN, 'b', 'a', SEPARATOR_TOKEN, '_eos_'];
+    const timings = computeWordTimings({ text: 'بَ بَ', tokens, durations: [2, 2, 6, 2, 2, 6, 10], secondsPerFrame: 0.1 });
+    if ('problem' in timings) throw new Error(timings.problem);
+    // 30 frames = 3 s; words heard for 4 + 4 = 8 frames, so 22 of 30 frames are pauses.
+    expect(timings.stats).toEqual({ words: 2, wordsPerMinute: 40, pausePercent: 73.3 });
+  });
+
+  it('leaves words the voice can\'t read out of the stats', () => {
+    expect(timeText('MIT سَلامٌ').stats.words).toBe(1);
+  });
+
   it('reports a problem instead of guessing when tokens and words don\'t line up', () => {
     const tokens = ['b', 'a', SEPARATOR_TOKEN, '_eos_'];
     expect(computeWordTimings({ text: 'بَ بَ', tokens, durations: [2, 2, 3, 1], secondsPerFrame: 0.01 })).toEqual({ problem: expect.stringContaining('1 word groups') });
