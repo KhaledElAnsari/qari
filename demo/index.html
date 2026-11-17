@@ -205,6 +205,8 @@
     .reading .w.current { color: var(--lapis); background: var(--gold-soft); box-shadow: 0 0 0 .14em var(--gold-soft); }
     .page:has(textarea:focus-visible) { box-shadow: 0 0 0 3px var(--lapis-soft); }
     .hint { font-size: .85rem; color: var(--muted); margin: .6rem 0 0; }
+    .samples { display: flex; flex-wrap: wrap; gap: .5rem; margin-block-start: .8rem; }
+    .sample { font-size: .85rem; padding: .3rem .85rem; background: var(--paper); }
 
     .controls { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; }
     .clock { font-size: .9rem; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 7.5rem; text-align: end; }
@@ -316,6 +318,10 @@
       <textarea id="text" aria-labelledby="text-heading">اَلسَّلامُ عَلَيكُم يَا صَدِيقِي، هَذَا قَارِئٌ يَقْرَأُ النُّصُوصَ بِصَوْتٍ وَاضِحٍ.</textarea>
     </div>
     <p class="hint">النص المشكول يُقرأ أوضح · <span lang="en" dir="ltr">Diacritized text is read more accurately.</span></p>
+    <div class="samples" role="group" aria-label="Sample texts">
+      <button autocomplete="off" type="button" class="sample" data-sample="greeting">مثال: تحية · Greeting</button>
+      <button autocomplete="off" type="button" class="sample" data-sample="numbers" data-testid="sample-numbers">مثال: أرقام · Numbers</button>
+    </div>
   </section>
 
   <section class="card" aria-labelledby="voice-heading">

@@ -100,6 +100,7 @@ function setModelBusy(busy: boolean): void {
   elements.prepare.disabled = busy;
   elements.clearCache.disabled = busy;
   for (const radio of elements.voices.querySelectorAll('input')) radio.disabled = busy;
+  for (const sample of document.querySelectorAll<HTMLButtonElement>('.sample')) sample.disabled = busy;
   elements.voices.setAttribute('aria-disabled', String(busy));
   document.body.toggleAttribute('data-model-busy', busy);
   updateAudioControls();
@@ -709,6 +710,19 @@ elements.stop.addEventListener('click', () => {
 elements.clearCache.addEventListener('click', () => void clearCache());
 elements.download.addEventListener('click', downloadAudio);
 elements.text.addEventListener('input', discardAudio);
+
+/** Sample texts; "numbers" has Western and Arabic-Indic digits, for testing normalization (Q3, not built yet). */
+const SAMPLES: Readonly<Record<string, string>> = {
+  greeting: 'اَلسَّلامُ عَلَيكُم يَا صَدِيقِي، هَذَا قَارِئٌ يَقْرَأُ النُّصُوصَ بِصَوْتٍ وَاضِحٍ.',
+  numbers: 'وُلِدَ جَدِّي فِي عَامِ 1950، وَلَهُ ٣ أَبْنَاءٍ وَ12 حَفِيدًا.',
+};
+for (const button of document.querySelectorAll<HTMLButtonElement>('.sample')) {
+  button.addEventListener('click', () => {
+    if (modelBusy) return;
+    elements.text.value = SAMPLES[button.dataset.sample ?? ''] ?? '';
+    discardAudio();
+  });
+}
 // Firefox restores buttons' disabled state on reload; start from the real state (no voice yet).
 elements.stop.disabled = true;
 updateAudioControls();
