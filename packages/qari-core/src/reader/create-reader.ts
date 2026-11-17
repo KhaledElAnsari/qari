@@ -50,6 +50,12 @@ export interface ReaderOptions {
    * call can override it with `normalize`, e.g. from a listener's "Read numbers as words" checkbox.
    */
   normalization?: { enabled: boolean };
+  /**
+   * Download and loading progress, from the first load on. createReader() only resolves once the voice is loaded, so
+   * this is the only way to show the first download; later loads (setVoice, setBackend) report here too.
+   * Same as listening to the reader's 'progress' event.
+   */
+  onProgress?: (progress: LoadProgress) => void;
 }
 
 /** Options for one speak() or synthesize() call. */
@@ -320,6 +326,7 @@ export async function createReader(options: ReaderOptions): Promise<Reader> {
     },
   };
 
+  if (options.onProgress) events.on('progress', options.onProgress);
   try {
     await loadVoice(voice, backend);
   }

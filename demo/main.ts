@@ -317,6 +317,8 @@ function setPhase(phase: Phase, fraction = 0): void {
   elements.prepare.setAttribute('aria-busy', String(phase === 'downloading' || phase === 'preparing'));
   elements.prepare.style.setProperty('--p', String(phase === 'idle' ? 0 : phase === 'downloading' ? Math.min(Math.max(fraction, 0), 1) : 1));
   elements.stage.toggleAttribute('data-ready', phase === 'ready');
+  // The bar appears only once real bytes arrive (showProgress), so a cached voice doesn't flash an empty bar.
+  if (phase !== 'downloading') elements.progress.hidden = true;
 }
 
 function showProgress(progress: LoadProgress): void {
@@ -324,10 +326,13 @@ function showProgress(progress: LoadProgress): void {
     setPhase('downloading', progress.totalBytes > 0 ? progress.loadedBytes / progress.totalBytes : 0);
     elements.progress.max = Math.max(progress.totalBytes, 1);
     elements.progress.value = progress.loadedBytes;
+    elements.progress.hidden = progress.fromCache;
     const total = progress.totalBytes > 0 ? ` / ${megabytes(progress.totalBytes)}` : '';
+    const percent = progress.totalBytes > 0 ? ` · ${Math.floor((progress.loadedBytes / progress.totalBytes) * 100)}%` : '';
     setStage(() => progress.fromCache
       ? `${t('fromCache')} (${megabytes(progress.loadedBytes)} MB)`
-      : `${t('downloading')} ${megabytes(progress.loadedBytes)}${total} MB`);
+      // \u2066…\u2069 keeps the numbers left to right inside the Arabic sentence (30.6 / 69.6 MB · 44%).
+      : `${t('downloading')} \u2066${megabytes(progress.loadedBytes)}${total} MB${percent}\u2069`);
     return;
   }
   elements.progress.removeAttribute('value');
@@ -359,9 +364,8 @@ async function loadVoices(): Promise<void> {
   if (missing.length > 0) showMissingFiles(missing);
 }
 
-/** Listens to a new reader: progress, problems, playback state, and the timings of what plays. */
+/** Listens to a new reader: problems, playback state, and the timings of what plays (progress comes via onProgress). */
 function attachReaderListeners(activeReader: Reader): void {
-  activeReader.on('progress', showProgress);
   activeReader.on('warning', message => log(`warning: ${message}`));
   activeReader.on('error', showError);
   activeReader.on('state', (state) => {
@@ -386,7 +390,8 @@ async function loadSelectedVoice(): Promise<Reader> {
   const backend = selectedMode();
   const startedAt = performance.now();
   if (!reader) {
-    reader = await createReader({ voice, backend });
+    // onProgress, not reader.on('progress'): createReader() resolves only after the first download.
+    reader = await createReader({ voice, backend, onProgress: showProgress });
     attachReaderListeners(reader);
     log(`voice ${reader.voice.id} ready in ${Math.round(performance.now() - startedAt)} ms on ${reader.backend}`);
     return reader;
@@ -756,7 +761,7 @@ elements.normalize.addEventListener('change', discardAudio);
 
 /** Sample texts; "numbers" has Western and Arabic-Indic digits, for testing normalization (Q3, not built yet). */
 const SAMPLES: Readonly<Record<string, string>> = {
-  greeting: 'اَلسَّلامُ عَلَيكُم يَا صَدِيقِي، هَذَا قَارِئٌ يَقْرَأُ النُّصُوصَ بِصَوْتٍ وَاضِحٍ.',
+  greeting: 'اَلسَّلامُ عَلَيكُم يَا صَدِيقِي، هَذَا قَارِئٌ يَقْرَأُ النُّصُوصَ بِصَوْتٍ وَاضِح.',
   numbers: 'وُلِدَ جَدِّي فِي عَامِ 1950، وَلَهُ ٣ أَبْنَاءٍ وَ12 حَفِيدًا.',
 };
 for (const button of document.querySelectorAll<HTMLButtonElement>('.sample')) {
