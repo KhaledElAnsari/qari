@@ -131,6 +131,16 @@
       font-family: var(--naskh); font-size: clamp(1.5rem, 4.2vw, 1.85rem); line-height: 2.3; padding: .5rem 1rem;
     }
     textarea:focus-visible { outline: none; }
+    .page [hidden] { display: none; }
+
+    /* While reading, the text is shown word by word: read words in full ink, the current one haloed in gold. */
+    .reading {
+      font-family: var(--naskh); font-size: clamp(1.5rem, 4.2vw, 1.85rem); line-height: 2.3; padding: .5rem 1rem;
+      white-space: pre-wrap; overflow-wrap: anywhere; color: var(--muted);
+    }
+    .reading .w { border-radius: .35em; transition: color 120ms ease, background-color 120ms ease, box-shadow 120ms ease; }
+    .reading .w.read { color: var(--ink); }
+    .reading .w.current { color: var(--lapis); background: var(--gold-soft); box-shadow: 0 0 0 .14em var(--gold-soft); }
     .page:has(textarea:focus-visible) { box-shadow: 0 0 0 3px var(--lapis-soft); }
     .hint { font-size: .85rem; color: var(--muted); margin: .6rem 0 0; }
 
@@ -149,6 +159,43 @@
     @keyframes level { from { transform: scaleY(.2); } to { transform: scaleY(1); } }
     #playback { font-size: .85rem; color: var(--muted); }
 
+    /* ── Timing ribbon: each heard word as long as it lasts, right to left like the script; gaps are pauses. ── */
+    .card:nth-of-type(3) { animation-delay: 140ms; }
+    .track {
+      position: relative; height: 3.6rem; border-radius: .8rem; background: var(--paper); border: 1px solid var(--line); overflow: hidden;
+    }
+    .track::before { content: ""; position: absolute; inset-inline: .4rem; top: 50%; border-top: 1px dashed var(--line); }
+    .seg {
+      position: absolute; top: .5rem; bottom: .5rem; min-width: 3px; border-radius: .45rem; overflow: hidden;
+      display: grid; place-items: center; white-space: nowrap; cursor: default;
+      font-family: var(--naskh); font-size: 1.05rem; line-height: 1; color: var(--lapis); background: var(--lapis-soft);
+      transform-origin: right center; transition: background-color 150ms ease, color 150ms ease, box-shadow 150ms ease;
+      animation: grow 360ms var(--ease-out) both; animation-delay: calc(var(--i, 0) * 28ms);
+    }
+    @keyframes grow { from { opacity: 0; transform: scaleX(.5); } }
+    .seg.read { background: var(--lapis); color: var(--lapis-ink); }
+    .seg.tight { color: transparent !important; }
+    .seg.current { background: var(--gold); color: var(--sheet); }
+    .seg:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+    @media (hover: hover) and (pointer: fine) { .seg:hover { box-shadow: inset 0 0 0 2px var(--gold); } }
+    .playhead {
+      position: absolute; top: 0; bottom: 0; inset-inline-start: 0; width: 2px; margin-inline-start: -1px; z-index: 1;
+      background: var(--gold); opacity: 0; transition: opacity 200ms ease; pointer-events: none;
+    }
+    .playhead::before { content: ""; position: absolute; top: -1px; left: -3px; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); }
+    body[data-playback="playing"] .playhead { opacity: 1; }
+    .ticks { position: relative; height: 1.3rem; margin-block-start: .3rem; font-size: .72rem; color: var(--muted); direction: rtl; }
+    .tick { position: absolute; inset-inline-start: 0; transform: translateX(50%); font-variant-numeric: tabular-nums; }
+    .tick:first-child { transform: none; }
+    .readout { min-height: 1.6rem; margin: .5rem 0 0; font-size: .9rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .readout b { font-family: var(--naskh); font-size: 1.15rem; font-weight: 700; color: var(--ink); }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr)); gap: .6rem; margin: 1rem 0 0; }
+    .stats div { border: 1px solid var(--line); border-radius: .7rem; padding: .55rem .75rem; background: var(--paper); }
+    .stats dt { font-size: .78rem; color: var(--muted); }
+    .stats dd { margin: 0; font-size: 1.35rem; font-weight: 600; color: var(--lapis); font-variant-numeric: tabular-nums; }
+    .stats dd small { font-size: .75rem; font-weight: 400; color: var(--muted); margin-inline-start: .2rem; }
+    #timing-json { font: .75rem/1.45 ui-monospace, monospace; white-space: pre; background: var(--paper); border: 1px solid var(--line); border-radius: .6rem; padding: .6rem; max-height: 16rem; overflow: auto; }
+
     /* ── Developer drawer ── */
     details.dev { margin-block-start: 2.5rem; }
     details.dev > summary { cursor: pointer; color: var(--muted); width: fit-content; }
@@ -161,6 +208,7 @@
     @media (prefers-reduced-motion: reduce) {
       .wordmark, .card, .message, .notice { animation: fade 200ms ease both; }
       #voices::before { transition: none; }
+      .seg { animation: fade 200ms ease both; }
       body[data-playback="playing"] .meter i { animation: none; transform: scaleY(.7); }
       #prepare[data-phase="preparing"]::before { animation: none; }
     }
@@ -201,6 +249,7 @@
   <section class="card" aria-labelledby="text-heading">
     <h2 id="text-heading"><span class="step">٢</span> النص <span class="en">· Text</span></h2>
     <div class="page">
+      <div id="reading" class="reading" data-testid="reading" hidden></div>
       <textarea id="text" aria-labelledby="text-heading">اَلسَّلامُ عَلَيكُم يَا صَدِيقِي، هَذَا قَارِئٌ يَقْرَأُ النُّصُوصَ بِصَوْتٍ وَاضِحٍ.</textarea>
     </div>
     <p class="hint">النص المشكول يُقرأ أوضح · <span lang="en" dir="ltr">Diacritized text is read more accurately.</span></p>
@@ -209,6 +258,22 @@
       <button id="stop" type="button" disabled>■ أوقف · Stop</button>
       <span id="playback" data-testid="playback"></span>
       <span class="meter" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="timing-heading">
+    <h2 id="timing-heading"><span class="step">٣</span> التوقيت <span class="en">· Timing</span></h2>
+    <p class="hint" id="timing-empty">اقرأ النص لترى متى تُنطق كل كلمة · <span lang="en" dir="ltr">Read the text to see when each word is spoken.</span></p>
+    <div id="timeline" data-testid="timeline" hidden>
+      <div class="track" id="track"><div class="playhead" id="playhead"></div></div>
+      <div class="ticks" id="ticks" aria-hidden="true"></div>
+      <p class="readout" id="readout" aria-live="polite"></p>
+      <dl class="stats">
+        <div><dt>الكلمات · Words</dt><dd id="stat-words">–</dd></div>
+        <div><dt>المدة · Length</dt><dd id="stat-length">–</dd></div>
+        <div><dt>السرعة · Pace</dt><dd id="stat-pace">–</dd></div>
+        <div><dt>الوقفات · Pauses</dt><dd id="stat-pauses">–</dd></div>
+      </dl>
     </div>
   </section>
 
@@ -227,6 +292,8 @@
         <button id="clear-cache" type="button" data-testid="clear-cache">Clear saved voice files</button>
         <span class="status" id="cache-status" data-testid="cache-status" aria-live="polite"></span>
       </div>
+      <p class="field" style="margin: 1rem 0 .3rem"><span>Timing JSON (last reading)</span></p>
+      <pre id="timing-json" data-testid="timing-json">–</pre>
       <p class="field" style="margin: 1rem 0 .3rem"><span>Log</span></p>
       <div id="log" data-testid="log"></div>
     </div>
