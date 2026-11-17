@@ -13,3 +13,11 @@ Licence type of these files: non-commercial.
 `*.onnx` here is git-ignored (see `.gitignore`), so the files stay out of commits and CI. The npm packages never include them either: each package publishes only its `dist/`.
 
 To use a CDN or another server later, change `model.url` and `vocoder.url` in the voice config to absolute URLs. Nothing else changes. When you replace a file with a different one, bump `version` too: the browser cache is keyed by URL + version.
+
+## Altered Models
+
+We alter some models to add features qari needs, mainly word timings.
+
+`mixer128_dur.onnx` is an altered version of nipponjo's `mixer128.onnx`. In other words, "same same but different": same weights and same voice, patched to also output how long each sound lasts, which qari uses for word timings.
+
+![Same same but different](https://media.tenor.com/tm4JV1Qs15AAAAAC/the-interview-james-franco.gif)
