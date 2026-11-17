@@ -233,6 +233,12 @@
     .file-info { font-size: .85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
     .keep span { display: block; }
     .keep { margin: 1rem 0 0; padding-inline-start: .7rem; border-inline-start: .2rem solid var(--gold); font-size: .85rem; color: var(--muted); }
+    /* Long readings scroll sideways at a fixed scale instead of squeezing every word. */
+    .ribbon-scroll {
+      overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; padding-block-end: .25rem;
+      scrollbar-width: thin; scrollbar-color: var(--line) transparent;
+    }
+    .ribbon { min-width: 100%; }
     .track {
       position: relative; height: 3.6rem; border-radius: .8rem; background: var(--paper); border: 1px solid var(--line); overflow: hidden;
     }
@@ -350,8 +356,12 @@
       <p class="status"><span class="spinner" aria-hidden="true"></span> جارٍ تجهيز الصوت · <span lang="en" dir="ltr">Making the audio…</span></p>
     </div>
     <div id="timeline" data-testid="timeline" hidden>
-      <div class="track" id="track"><div class="playhead" id="playhead"></div></div>
-      <div class="ticks" id="ticks" aria-hidden="true"></div>
+      <div class="ribbon-scroll" id="ribbon-scroll" data-testid="ribbon-scroll">
+        <div class="ribbon" id="ribbon">
+          <div class="track" id="track"><div class="playhead" id="playhead"></div></div>
+          <div class="ticks" id="ticks" aria-hidden="true"></div>
+        </div>
+      </div>
       <p class="readout" id="readout" aria-live="polite"></p>
       <dl class="stats">
         <div><dt>الكلمات · Words</dt><dd id="stat-words">–</dd></div>

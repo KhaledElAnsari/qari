@@ -33,6 +33,8 @@ const elements = {
   timingLoading: $('timing-loading'),
   timeline: $('timeline'),
   track: $('track'),
+  ribbonScroll: $('ribbon-scroll'),
+  ribbon: $('ribbon'),
   playhead: $('playhead'),
   ticks: $('ticks'),
   readout: $('readout'),
@@ -519,6 +521,7 @@ function renderTimeline(next: WordTimings): void {
     // The same audio again (Read after Prepare audio, or a replay): just rewind the ribbon.
     for (const segment of segments.values()) segment.classList.remove('read', 'current');
     elements.playhead.style.transform = 'translateX(0)';
+    elements.ribbonScroll.scrollLeft = 0;
     setClock(0, next.duration);
     return;
   }
@@ -540,7 +543,14 @@ function renderTimeline(next: WordTimings): void {
   elements.playhead.style.transform = 'translateX(0)';
   elements.track.replaceChildren(elements.playhead, ...nodes);
 
-  const step = total > 8 ? 2 : total > 3 ? 1 : 0.5;
+  // A fixed scale, so words stay wide enough to read; short readings still fill the card (min-width 100%).
+  elements.timingEmpty.hidden = true;
+  elements.timeline.hidden = false;
+  elements.ribbon.style.width = `${Math.ceil(total * PIXELS_PER_SECOND)}px`;
+  elements.ribbonScroll.scrollLeft = 0;
+  const pixelsPerSecond = elements.ribbon.clientWidth / total;
+  // Ticks at least ~56 px apart, on a round step.
+  const step = [0.5, 1, 2, 5, 10, 30, 60].find(candidate => candidate * pixelsPerSecond >= 56) ?? 60;
   const ticks: HTMLElement[] = [];
   for (let at = 0; at <= total + 1e-6; at += step) {
     const tick = Object.assign(document.createElement('span'), { className: 'tick', textContent: `${Number(at.toFixed(1))}s` });
@@ -557,10 +567,27 @@ function renderTimeline(next: WordTimings): void {
   elements.timingJson.textContent = JSON.stringify({ duration: next.duration, stats: next.stats, words: next.words, displayWords: next.displayWords }, null, 1);
   elements.readout.replaceChildren('مرّر المؤشر على كلمة لترى توقيتها · ', Object.assign(document.createElement('span'), { textContent: 'Hover or focus a word to see its timing.', lang: 'en', dir: 'ltr' }));
   setClock(0, total);
-  elements.timingEmpty.hidden = true;
-  elements.timeline.hidden = false;
   fitLabels();
   log(`timings: ${heard.length} words over ${total.toFixed(2)} s`);
+}
+
+const PIXELS_PER_SECOND = 140;
+let ribbonScrollUntil = 0;
+
+/**
+ * Keeps the playhead visible on a long ribbon: when it nears the far edge of the view (or is out of it), the ribbon
+ * glides so the playhead sits near the start of the view again. `offset` is pixels from the ribbon's start (its right
+ * edge); in right-to-left scrolling, scrollLeft is 0 at the start and negative further along.
+ */
+function keepPlayheadInView(offset: number): void {
+  const view = elements.ribbonScroll;
+  if (view.scrollWidth <= view.clientWidth || performance.now() < ribbonScrollUntil) return;
+  const visibleFrom = -view.scrollLeft;
+  const visibleTo = visibleFrom + view.clientWidth;
+  if (offset >= visibleFrom && offset <= visibleTo - view.clientWidth * 0.15) return;
+  const smooth = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+  view.scrollTo({ left: -Math.max(0, offset - view.clientWidth * 0.2), behavior: smooth ? 'smooth' : 'auto' });
+  ribbonScrollUntil = performance.now() + (smooth ? 450 : 0);
 }
 
 /** Moves the playhead with the audio, every frame, while the voice reads. */
@@ -570,7 +597,9 @@ function followPlayhead(): void {
     const position = reader.position();
     if (position !== null) {
       const fraction = Math.min(position / Math.max(timings.duration, 0.001), 1);
-      elements.playhead.style.transform = `translateX(${-fraction * elements.track.clientWidth}px)`;
+      const offset = fraction * elements.track.clientWidth;
+      elements.playhead.style.transform = `translateX(${-offset}px)`;
+      keepPlayheadInView(offset);
       setClock(Math.min(position, timings.duration), timings.duration);
     }
     requestAnimationFrame(step);
