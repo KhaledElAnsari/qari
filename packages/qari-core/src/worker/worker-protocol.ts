@@ -1,5 +1,6 @@
 import type { Backend, ProbeResult } from '../backend/backend-probe';
 import type { QariErrorCode } from '../errors/qari-error';
+import type { WordTimings } from '../timings/word-timings';
 import type { VoiceConfig } from '../voice/voice-config';
 
 /** Load stages shown by the "Prepare voice" step (PRD Q1). */
@@ -27,7 +28,7 @@ export type WorkerResponse =
   | { type: 'probed'; requestId: number; probe: ProbeResult }
   | { type: 'progress'; requestId: number; progress: LoadProgress }
   | { type: 'loaded'; requestId: number; backend: Backend; reusedModels: boolean }
-  | { type: 'audio'; requestId: number; pcm: Float32Array; sampleRate: number; durations?: number[] }
+  | { type: 'audio'; requestId: number; pcm: Float32Array; sampleRate: number; timings?: WordTimings }
   | { type: 'disposed'; requestId: number }
   | { type: 'warning'; requestId: number; message: string }
   | { type: 'error'; requestId: number; code: QariErrorCode; detail: string };

@@ -4,7 +4,9 @@ import { prepareArabicText } from '../frontends/arabic-phonetiser/prepare-text';
 import { arabicToTokens, tokensToIds } from '../frontends/arabic-phonetiser/tokenize';
 import type { Backend } from '../backend/backend-probe';
 import { QariError } from '../errors/qari-error';
-import { isSpokenToken } from '../frontends/arabic-phonetiser/symbols';
+import { isSpokenToken, symbolId } from '../frontends/arabic-phonetiser/symbols';
+import { computeWordTimings } from '../timings/word-timings';
+import type { WordTimings } from '../timings/word-timings';
 import type { VoiceConfig } from '../voice/voice-config';
 import type { AdapterContext, RuntimeAdapter, SynthesisResult, VoiceModels } from './runtime-adapter';
 import { createSession } from './ort-session';
@@ -20,7 +22,6 @@ export class MixerTtsAdapter implements RuntimeAdapter {
   private acoustic: ort.InferenceSession | null = null;
   private vocoder: ort.InferenceSession | null = null;
   private voice: VoiceConfig;
-  private hasWarnedAboutDurations = false;
 
   constructor(private readonly context: AdapterContext) {}
 
@@ -30,11 +31,15 @@ export class MixerTtsAdapter implements RuntimeAdapter {
     // Sequential on purpose: two parallel WebGPU session builds compete for shader compilation.
     this.acoustic = await createSession(models.model, backend);
     this.vocoder = await createSession(models.vocoder, backend);
+    // Word timings need the patched model (scripts/patch-durations.py); the stock file would read without highlighting.
+    const durationOutput = voice.durationOutput;
+    if (voice.timings === 'native' && durationOutput && !this.acoustic.outputNames.includes(durationOutput)) {
+      throw new QariError('voice-unavailable', `Model for ${voice.id} has no "${durationOutput}" output, which word timings need. Use mixer128_dur.onnx (scripts/patch-durations.py).`);
+    }
   }
 
   useVoice(voice: VoiceConfig): void {
     this.voice = voice;
-    this.hasWarnedAboutDurations = false;
   }
 
   async synthesize(sentence: string, pace: number): Promise<SynthesisResult> {
@@ -64,7 +69,7 @@ export class MixerTtsAdapter implements RuntimeAdapter {
     // Copy out of the tensor so the buffer can be transferred to the main thread.
     const pcm = peakNormalize(Float32Array.from(wave.data as Float32Array));
     for (const tensor of [...Object.values(acousticOutputs), ...Object.values(vocoderOutputs)]) tensor.dispose();
-    return { pcm, sampleRate: this.voice.sampleRate, durations };
+    return { pcm, sampleRate: this.voice.sampleRate, timings: this.wordTimings(sentence, tokens, durations, pcm.length) };
   }
 
   async dispose(): Promise<void> {
@@ -73,18 +78,31 @@ export class MixerTtsAdapter implements RuntimeAdapter {
     this.vocoder = null;
   }
 
-  /** Reads the per-token durations output when the voice asks for native timings and the model has it. */
+  /** Word timings from the frame counts; a mismatch is reported as a warning and the audio plays without them. */
+  private wordTimings(text: string, tokens: string[], durations: number[] | undefined, samples: number): WordTimings | undefined {
+    if (!durations) return undefined;
+    const totalFrames = durations.reduce((sum, frames) => sum + frames, 0);
+    if (totalFrames === 0) return undefined;
+    const timings = computeWordTimings({
+      text,
+      // Unknown tokens never reached the model, so they have no duration.
+      tokens: tokens.filter(token => symbolId(token) !== undefined),
+      durations,
+      secondsPerFrame: samples / totalFrames / this.voice.sampleRate,
+    });
+    if ('problem' in timings) {
+      this.context.onWarning(`Word timings unavailable for this text: ${timings.problem}`);
+      return undefined;
+    }
+    return timings;
+  }
+
+  /** Per-token frame counts from the durations output, or undefined when the voice doesn't use native timings. */
   private readDurations(outputs: ort.InferenceSession.OnnxValueMapType): number[] | undefined {
     const name = this.voice.durationOutput;
     if (this.voice.timings !== 'native' || !name) return undefined;
     const tensor = outputs[name];
-    if (!tensor) {
-      // Q1 accepts the unpatched model; Q4 turns this into a load error (docs/decisions.md).
-      if (!this.hasWarnedAboutDurations) this.context.onWarning(`Model for ${this.voice.id} has no "${name}" output yet, so word timings are unavailable.`);
-      this.hasWarnedAboutDurations = true;
-      return undefined;
-    }
-    return Array.from(tensor.data as BigInt64Array, frames => Number(frames));
+    return tensor ? Array.from(tensor.data as BigInt64Array, frames => Number(frames)) : undefined;
   }
 }
 

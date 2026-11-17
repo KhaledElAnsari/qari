@@ -1,12 +1,12 @@
 # Local voice models
 
-Put the model files here. The demo serves this folder at `/models/`, and the voice configs in `voices/` point at it with relative URLs (`models/mixer128.onnx`), so `npm run dev` reads the voices from your own machine.
+Put the model files here. The demo serves this folder at `/models/`, and the voice configs in `voices/` point at it with relative URLs (`models/mixer128_dur.onnx`), so `npm run dev` reads the voices from your own machine.
 
 | File | Used by | Where to get it |
 | --- | --- | --- |
-| `mixer128.onnx` | Male sound, Female sound (acoustic model) | nipponjo's `tts_arabic` downloads (or the Hugging Face repo `nipponjo/tts-arabic-onnx`) |
+| `mixer128.onnx` | Source of `mixer128_dur.onnx` only (the voices don't load it) | nipponjo's `tts_arabic` downloads (or the Hugging Face repo `nipponjo/tts-arabic-onnx`) |
 | `vocos22.onnx` | Male sound, Female sound (vocoder, 22,050 Hz) | same place |
-| `mixer128_dur.onnx` | Q4: same model with the `durations` output added | made by the duration patch (research/word-timings-mixer-tts.md) |
+| `mixer128_dur.onnx` | Male sound, Female sound (acoustic model + `durations` output, for word timings) | `python3 -I scripts/patch-durations.py voices/models/mixer128.onnx voices/models/mixer128_dur.onnx` (needs `pip install onnx onnxruntime numpy`) |
 
 Licence type of these files: non-commercial.
 

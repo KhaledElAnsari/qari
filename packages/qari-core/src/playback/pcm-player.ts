@@ -3,6 +3,7 @@ export class PcmPlayer {
   private context: AudioContext | null = null;
   private source: AudioBufferSourceNode | null = null;
   private finishCurrent: (() => void) | null = null;
+  private startedAt = 0;
 
   /** Creates or resumes the AudioContext; call synchronously inside the user's click so Safari allows playback. */
   unlock(): void {
@@ -25,9 +26,19 @@ export class PcmPlayer {
     await new Promise<void>((resolve) => {
       this.finishCurrent = resolve;
       source.onended = () => resolve();
+      this.startedAt = context.currentTime;
       source.start();
     });
     if (this.source === source) this.source = null;
+  }
+
+  /**
+   * Seconds into the sound that is playing now, as heard (output latency taken off where the browser reports it);
+   * null when nothing is playing.
+   */
+  position(): number | null {
+    if (!this.source || !this.context) return null;
+    return Math.max(0, this.context.currentTime - this.startedAt - (this.context.outputLatency || 0));
   }
 
   stop(): void {

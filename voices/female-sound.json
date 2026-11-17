@@ -2,7 +2,7 @@
   "id": "nipponjo-female",
   "label": { "en": "Female sound", "ar": "صوت نسائي" },
   "speaker": 3,
-  "model": { "url": "models/mixer128.onnx", "version": "2024-09-20" },
+  "model": { "url": "models/mixer128_dur.onnx", "version": "2024-09-20+durations" },
   "vocoder": { "url": "models/vocos22.onnx", "version": "2024-09-21" },
   "runtime": "mixer-tts",
   "frontend": { "kind": "arabic-phonetiser" },

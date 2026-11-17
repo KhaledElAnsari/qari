@@ -2,15 +2,33 @@ import type { Backend, ProbeResult } from '../backend/backend-probe';
 import { parseErrorCode, QariError, toQariError } from '../errors/qari-error';
 import { PcmPlayer } from '../playback/pcm-player';
 import { startSynthWorker } from '../start-worker';
+import type { WordTimings } from '../timings/word-timings';
 import type { VoiceConfig } from '../voice/voice-config';
 import type { LoadProgress, WorkerRequest, WorkerResponse } from '../worker/worker-protocol';
 import { TypedEvents } from './typed-events';
 
 export type ReaderState = 'loading' | 'warming' | 'ready' | 'playing' | 'paused';
 
-/** Events a reader emits (word events arrive with Q4). */
+/** The word being read now: its timing and where it sits in the text passed to speak(). */
+export interface WordEvent {
+  /** Position among the whitespace-separated words of the text. */
+  displayIndex: number;
+  text: string;
+  /** Seconds from the start of the audio. */
+  start: number;
+  end: number;
+  /** UTF-16 offsets into the text, end exclusive. */
+  charStart: number;
+  charEnd: number;
+}
+
+/** Events a reader emits. */
 export interface ReaderEvents {
   state: ReaderState;
+  /** All word timings of the text about to play, emitted as playback starts (voices with word timings only). */
+  timings: WordTimings;
+  /** Each word as it starts to be heard, when the voice has word timings. Words the voice can't read are skipped. */
+  word: WordEvent;
   progress: LoadProgress;
   /** Technical notes for developers (console, logs); never shown to listeners. */
   warning: string;
@@ -33,7 +51,8 @@ export interface ReaderOptions {
 export interface Synthesis {
   pcm: Float32Array<ArrayBuffer>;
   sampleRate: number;
-  durations?: number[];
+  /** Word timings, when the voice has them (native timings). */
+  timings?: WordTimings;
 }
 
 export interface Reader {
@@ -48,6 +67,8 @@ export interface Reader {
    */
   speak(text: string, options?: { pace?: number }): Promise<void>;
   stop(): void;
+  /** Seconds into the audio being heard now, or null when nothing is playing. */
+  position(): number | null;
   synthesize(text: string, options?: { pace?: number }): Promise<Synthesis>;
   /** Switches voice; same model files (e.g. Male → Female sound) reuse the loaded sessions. On failure, the previous voice is reloaded, then it rejects. */
   setVoice(voice: VoiceConfig): Promise<void>;
@@ -160,7 +181,30 @@ export async function createReader(options: ReaderOptions): Promise<Reader> {
 
   const synthesize = async (text: string, synthesisOptions: { pace?: number } = {}): Promise<Synthesis> => {
     const audio = await client.request({ type: 'synthesize', text, pace: synthesisOptions.pace ?? voice.defaultPace ?? 1 }, 'audio');
-    return { pcm: audio.pcm as Float32Array<ArrayBuffer>, sampleRate: audio.sampleRate, durations: audio.durations };
+    return { pcm: audio.pcm as Float32Array<ArrayBuffer>, sampleRate: audio.sampleRate, timings: audio.timings };
+  };
+
+  /** Emits a word event each time playback reaches the next word; returns a function that stops following. */
+  const followWords = (timings: WordTimings, run: number): () => void => {
+    const heard = timings.displayWords.filter(word => word.end > word.start);
+    const nextFrame = (step: () => void) => typeof requestAnimationFrame === 'function'
+      ? { cancel: cancelAnimationFrame.bind(globalThis, requestAnimationFrame(step)) }
+      : { cancel: clearTimeout.bind(globalThis, setTimeout(step, 30)) };
+    let current = -1;
+    let pending = nextFrame(tick);
+    function tick(): void {
+      const position = player.position();
+      if (run !== speakRun || position === null) return;
+      let next = current;
+      while (next + 1 < heard.length && heard[next + 1].start <= position) next++;
+      if (next !== current) {
+        current = next;
+        const word = heard[next];
+        events.emit('word', { displayIndex: word.displayIndex, text: word.text, start: word.start, end: word.end, ...timings.ranges[word.displayIndex] });
+      }
+      pending = nextFrame(tick);
+    }
+    return () => pending.cancel();
   };
 
   const reader: Reader = {
@@ -180,17 +224,22 @@ export async function createReader(options: ReaderOptions): Promise<Reader> {
       player.unlock();
       const run = ++speakRun;
       player.stop();
+      let stopFollowing: (() => void) | null = null;
       try {
         if (text.trim() === '') throw new QariError('nothing-to-read', 'Empty text.');
         const audio = await synthesize(text, speakOptions);
         if (run !== speakRun) return;
         setState('playing');
-        await player.play(audio.pcm, audio.sampleRate);
+        if (audio.timings) events.emit('timings', audio.timings);
+        const playing = player.play(audio.pcm, audio.sampleRate);
+        stopFollowing = audio.timings ? followWords(audio.timings, run) : null;
+        await playing;
       }
       catch (error) {
         throw fail(error, 'reading-failed');
       }
       finally {
+        stopFollowing?.();
         if (run === speakRun && state === 'playing') setState('ready');
       }
     },
@@ -199,6 +248,7 @@ export async function createReader(options: ReaderOptions): Promise<Reader> {
       player.stop();
       if (state === 'playing' || state === 'paused') setState('ready');
     },
+    position: () => player.position(),
     synthesize,
     async setVoice(next) {
       reader.stop();

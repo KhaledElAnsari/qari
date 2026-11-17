@@ -82,7 +82,7 @@ Full guide: `docs/deployment.md`. Khaled deploys to Hostinger web hosting; GitHu
 - **`sizeBytes` is optional.** [Certain] The download progress uses `Content-Length` first and falls back to `sizeBytes`; the example configs leave it out because the sizes couldn't be measured from this workspace (Hugging Face is blocked here). Fill them in once measured.
 - [Certain] Example configs use **local** model files: `models/mixer128.onnx` and `models/vocos22.onnx`, relative to the config, served by the demo from `voices/models/` (Khaled downloads them by hand; see that folder's README). Superseded the earlier guessed Hugging Face URLs.
 - [Certain] Versions in the example configs come from the upload timestamps in `tts_arabic/urls.py`: mixer128 `2024-09-20`, vocos22 `2024-09-21`.
-- **Timings in Q1:** both configs say `timings: "native"` with `durationOutput: "durations"` (the PRD target). The stock mixer128 is the *unpatched* model, so it has no `durations` output yet; the adapter returns audio without durations and the reader emits a `warning`. Q4 switches the file to the patched `mixer128_dur.onnx` (in `voices/models/`) and turns the warning into a load error.
+- **Timings in Q1 (superseded by Q4 below):** both configs say `timings: "native"` with `durationOutput: "durations"` (the PRD target). The stock mixer128 is the *unpatched* model, so it has no `durations` output yet; the adapter returns audio without durations and the reader emits a `warning`. Q4 switches the file to the patched `mixer128_dur.onnx` (in `voices/models/`) and turns the warning into a load error.
 - "Female sound" is the same model files with `speaker: 3`. `reader.setVoice()` reuses the loaded sessions when the model files are identical, so switching between the two costs no download and no session rebuild.
 
 ## Q1 — text front end (arabic-phonetiser)
@@ -111,12 +111,22 @@ Full guide: `docs/deployment.md`. Khaled deploys to Hostinger web hosting; GitHu
 ## What only Khaled can verify (Q1 "done when")
 
 This workspace has no real voice files and no Safari, so these are open:
-1. Put `mixer128.onnx` and `vocos22.onnx` into `voices/models/`.
+1. Put `mixer128_dur.onnx` (see `voices/models/README.md`) and `vocos22.onnx` into `voices/models/`.
 2. Male sound and Female sound actually speak, on Chrome and Safari, from `npm run dev` over HTTPS or localhost.
 3. OPFS cache survives a reload on Safari (Chrome is covered by the browser test).
 4. The sizes (`sizeBytes`) and, if wanted, `sha256` of the two files, to fill into `voices/*.json`.
 5. On a device with a real GPU (your Pixel 8 Pro, the M3): accelerated mode loads and reads, and switching back to default mode works.
 
 ## Not built yet (by milestone)
+
+## Q4: word timings (started 2026-11-17, ahead of Q2 and Q3)
+
+- [Certain] **Model:** `scripts/patch-durations.py` adds one `Identity` node exposing `/Cast_4_output_0` (int64 frames per token, which the model already computes to stretch tokens) as output `durations`. `mel_spec` is unchanged and the frame counts sum to its length. The result matched the `mixer128_dur.onnx` in `maqroo2-test/maqroo2-word-sync` byte size and outputs. Both voice configs now load `models/mixer128_dur.onnx`, version `2024-09-20+durations`.
+- [Certain] **Load error, not a warning:** a voice with `timings: "native"` whose model lacks the `durationOutput` fails to load as `voice-unavailable` (detail names the patch tool).
+- [Certain] **Words:** a displayed word is a run of non-whitespace in the text passed to `speak()`. The phonetiser ends every word with `_+_`, so each separator group is one word; a punctuation-only word joins the word before it (as the phonetiser does), and a word with nothing readable (Latin, symbols) has no group and gets a zero-length timing where the reading is. If the group count and the readable-word count differ, the audio plays without timings and a `warning` says why.
+- [Certain] **Seconds:** frames × (audio samples ÷ total frames ÷ sample rate), so no hop size is configured (it comes out at 256 at 22,050 Hz). A word runs from its first sounding token to its last, so the pause after a word or a comma belongs to no word. Seconds are rounded to 3 decimals, as in the timing file.
+- [Certain] **API:** `Synthesis.timings` (`duration`, `words`, `displayWords` in the timing-file shapes, plus `ranges` with UTF-16 offsets per display word) and a reader `word` event `{ displayIndex, text, start, end, charStart, charEnd }`, emitted as each heard word starts (zero-length words are skipped). Also a `timings` event with the whole text's `WordTimings` as playback starts, and `reader.position()` (seconds into the audio being heard, or null), so a host can draw a timeline and move a playhead (the demo's timing ribbon uses both). Playback position is `AudioContext.currentTime` minus the start time and `outputLatency` where the browser reports it.
+- [Likely] Timing accuracy is the model's own: the frames it used to make the audio. Checked in Chromium (all 10 words of the demo sentence highlighted in order over 4.75 s); how it *sounds* against the highlight, and Safari/Firefox latency, are for Khaled to check by ear.
+- **Not yet:** `said` for spoken forms that differ from the text (needs Q3 normalization); sentence splitting (Q2) will need offsets per sentence; writing a `TimingFile` with an audio name (Q6, with WAV download).
 
 Q2 sentence splitting and streaming · Q3 normalization and the word map · Q4 timings (`TimingFile` type and JSON schema are already in `qari-core` so the binding format is fixed early) · Q5 the real `<qari-reader>` (Q0 has a stub that registers the tag) · Q6 WAV download, docs and npm 0.1.0 beta.

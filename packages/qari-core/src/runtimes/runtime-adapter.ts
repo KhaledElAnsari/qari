@@ -1,4 +1,5 @@
 import type { Backend } from '../backend/backend-probe';
+import type { WordTimings } from '../timings/word-timings';
 import type { VoiceConfig } from '../voice/voice-config';
 
 /** Model bytes for a voice, already downloaded or read from the cache. */
@@ -7,11 +8,11 @@ export interface VoiceModels {
   vocoder?: Uint8Array;
 }
 
-/** Audio for one sentence; `durations` are per-token frame counts when the model exposes them. */
+/** Audio for one sentence, with word timings when the voice has them. */
 export interface SynthesisResult {
   pcm: Float32Array;
   sampleRate: number;
-  durations?: number[];
+  timings?: WordTimings;
 }
 
 /** Runs one model family; picked by VoiceConfig.runtime so new families plug in without touching the UI (PRD 5.3). */
