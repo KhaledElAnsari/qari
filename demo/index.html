@@ -210,7 +210,7 @@
     .clock { font-size: .9rem; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 7.5rem; text-align: end; }
     body[data-playback="playing"] .clock { color: var(--ink); }
     .subhead { font-size: .95rem; font-weight: 600; margin: 1.6rem 0 .8rem; padding-block-start: 1.2rem; border-top: 1px solid var(--line); }
-    #play { background: var(--lapis); border-color: var(--lapis); color: var(--lapis-ink); font-weight: 600; padding-inline: 1.6rem; }
+    #play, #download { background: var(--lapis); border-color: var(--lapis); color: var(--lapis-ink); font-weight: 600; padding-inline: 1.6rem; }
 
     /* A small sound meter that only moves while the voice is reading. */
     .meter { display: inline-flex; align-items: center; gap: 3px; height: 1.4rem; margin-inline-start: auto; color: var(--gold); opacity: .35; transition: opacity 250ms ease; }
@@ -226,6 +226,13 @@
 
     /* ── Timing ribbon: each heard word as long as it lasts, right to left like the script; gaps are pauses. ── */
     .card:nth-of-type(3) { animation-delay: 140ms; }
+    .card:nth-of-type(4) { animation-delay: 210ms; }
+
+    /* ── Download ── */
+    .download { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1rem; }
+    .file-info { font-size: .85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .keep span { display: block; }
+    .keep { margin: 1rem 0 0; padding-inline-start: .7rem; border-inline-start: .2rem solid var(--gold); font-size: .85rem; color: var(--muted); }
     .track {
       position: relative; height: 3.6rem; border-radius: .8rem; background: var(--paper); border: 1px solid var(--line); overflow: hidden;
     }
@@ -353,6 +360,15 @@
         <div><dt>الوقفات · Pauses</dt><dd id="stat-pauses">–</dd></div>
       </dl>
     </div>
+  </section>
+
+  <section class="card" aria-labelledby="download-heading">
+    <h2 id="download-heading"><span class="step">٤</span> التحميل <span class="en">· Download</span></h2>
+    <div class="download">
+      <button autocomplete="off" id="download" type="button" disabled>⬇ حمّل الصوت · Download audio</button>
+      <span class="file-info" id="file-info" data-testid="file-info" dir="auto"></span>
+    </div>
+    <p class="keep"><span>الصوت لا يُحفظ: يختفي عند تحديث الصفحة أو إغلاقها ما لم تحمّله.</span><span lang="en" dir="ltr">The audio isn't saved: it's gone when you refresh or close the tab, unless you download it.</span></p>
   </section>
 
   <qari-reader hidden></qari-reader>

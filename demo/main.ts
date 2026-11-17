@@ -4,7 +4,7 @@
  * someone else's files.
  * Also checks that the model files are on the server and can clear the saved voice files (OPFS).
  */
-import { clearVoiceCache, createReader, splitDisplayWords, loadVoiceConfig, MODE_LABELS, probeDevice, QariError } from '@khaledelansari/qari-core';
+import { clearVoiceCache, createReader, encodeWav, splitDisplayWords, loadVoiceConfig, MODE_LABELS, probeDevice, QariError } from '@khaledelansari/qari-core';
 import type { Backend, LoadProgress, Reader, Synthesis, VoiceConfig, WordTimings } from '@khaledelansari/qari-core';
 import '@khaledelansari/qari-element';
 
@@ -42,6 +42,8 @@ const elements = {
   statPauses: $('stat-pauses'),
   timingJson: $('timing-json'),
   clock: $('clock'),
+  download: $<HTMLButtonElement>('download'),
+  fileInfo: $('file-info'),
   log: $('log'),
   filesNotice: $('files-notice'),
   clearCache: $<HTMLButtonElement>('clear-cache'),
@@ -60,9 +62,31 @@ let audio: Synthesis | null = null;
 /** True while the model is loading or reloading (Prepare audio, a voice or mode switch, clearing saved files). */
 let modelBusy = false;
 
-/** Read is available only when there is prepared audio and the model isn't busy. */
-function updatePlayEnabled(): void {
-  elements.play.disabled = modelBusy || audio === null;
+const fileSize = (bytes: number) => bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.round(bytes / 1024)} KB`;
+
+/** Read and Download are available only when there is prepared audio and the model isn't busy. */
+function updateAudioControls(): void {
+  const unavailable = modelBusy || audio === null;
+  elements.play.disabled = unavailable;
+  elements.download.disabled = unavailable;
+  elements.fileInfo.textContent = audio
+    ? `${(audio.pcm.length / audio.sampleRate).toFixed(1)} s · WAV · ${audio.sampleRate / 1000} kHz · mono · ${fileSize(44 + audio.pcm.length * 2)}`
+    : 'لا يوجد صوت بعد · No audio yet';
+}
+
+/** Saves the prepared audio as a WAV file. It exists only in this page's memory, so this is the only way to keep it. */
+function downloadAudio(): void {
+  if (!audio || !reader) return;
+  const blob = new Blob([encodeWav(audio.pcm, audio.sampleRate)], { type: 'audio/wav' });
+  const url = URL.createObjectURL(blob);
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[-:]/g, '').replace('T', '-');
+  const link = Object.assign(document.createElement('a'), { href: url, download: `qari-${reader.voice.id}-${stamp}.wav` });
+  document.body.append(link);
+  link.click();
+  link.remove();
+  // Let the browser start the download before the in-memory file is released.
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  log(`downloaded ${link.download} (${fileSize(blob.size)})`);
 }
 
 /** While the model works, every control waits: text, voice, mode, Prepare audio, Read and the cache button. */
@@ -76,7 +100,7 @@ function setModelBusy(busy: boolean): void {
   for (const radio of elements.voices.querySelectorAll('input')) radio.disabled = busy;
   elements.voices.setAttribute('aria-disabled', String(busy));
   document.body.toggleAttribute('data-model-busy', busy);
-  updatePlayEnabled();
+  updateAudioControls();
 }
 
 const log = (line: string) => {
@@ -477,7 +501,7 @@ function discardAudio(): void {
     setPhase('idle');
     elements.stage.textContent = 'Changed · prepare the audio again';
   }
-  updatePlayEnabled();
+  updateAudioControls();
 }
 
 /** Loader while the audio for the text is made: a placeholder ribbon at first, or a dimmed ribbon once one exists. */
@@ -631,10 +655,11 @@ elements.stop.addEventListener('click', () => {
   reader?.stop();
 });
 elements.clearCache.addEventListener('click', () => void clearCache());
+elements.download.addEventListener('click', downloadAudio);
 elements.text.addEventListener('input', discardAudio);
 // Firefox restores buttons' disabled state on reload; start from the real state (no voice yet).
 elements.stop.disabled = true;
-updatePlayEnabled();
+updateAudioControls();
 window.addEventListener('resize', fitLabels);
 elements.isolated.textContent = String(globalThis.crossOriginIsolated);
 
