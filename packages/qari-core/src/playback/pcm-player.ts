@@ -4,6 +4,7 @@ export class PcmPlayer {
   private source: AudioBufferSourceNode | null = null;
   private finishCurrent: (() => void) | null = null;
   private startedAt = 0;
+  private offset = 0;
 
   /** Creates or resumes the AudioContext; call synchronously inside the user's click so Safari allows playback. */
   unlock(): void {
@@ -11,8 +12,8 @@ export class PcmPlayer {
     if (this.context.state === 'suspended') void this.context.resume().catch(() => undefined);
   }
 
-  /** Plays samples and resolves when they finish or stop() is called. */
-  async play(pcm: Float32Array<ArrayBuffer>, sampleRate: number): Promise<void> {
+  /** Plays samples, from `from` seconds in (default 0), and resolves when they finish or stop() is called. */
+  async play(pcm: Float32Array<ArrayBuffer>, sampleRate: number, from = 0): Promise<void> {
     this.stop();
     this.unlock();
     const context = this.context as AudioContext;
@@ -26,8 +27,9 @@ export class PcmPlayer {
     await new Promise<void>((resolve) => {
       this.finishCurrent = resolve;
       source.onended = () => resolve();
+      this.offset = Math.min(Math.max(from, 0), buffer.duration);
       this.startedAt = context.currentTime;
-      source.start();
+      source.start(0, this.offset);
     });
     if (this.source === source) this.source = null;
   }
@@ -38,7 +40,8 @@ export class PcmPlayer {
    */
   position(): number | null {
     if (!this.source || !this.context) return null;
-    return Math.max(0, this.context.currentTime - this.startedAt - (this.context.outputLatency || 0));
+    // Heard time only starts once the output delay has passed, so a jump starts exactly at its offset, never before it.
+    return this.offset + Math.max(0, this.context.currentTime - this.startedAt - (this.context.outputLatency || 0));
   }
 
   stop(): void {

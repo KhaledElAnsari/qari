@@ -245,7 +245,7 @@
     .track::before { content: ""; position: absolute; inset-inline: .4rem; top: 50%; border-top: 1px dashed var(--line); }
     .seg {
       position: absolute; top: .5rem; bottom: .5rem; min-width: 3px; border-radius: .45rem; overflow: hidden;
-      display: grid; place-items: center; white-space: nowrap; cursor: default;
+      display: grid; place-items: center; white-space: nowrap; cursor: pointer;
       font-family: var(--naskh); font-size: 1.05rem; line-height: 1; color: var(--lapis); background: var(--lapis-soft);
       transform-origin: right center; transition: background-color 150ms ease, color 150ms ease, box-shadow 150ms ease;
       animation: grow 360ms var(--ease-out) both; animation-delay: calc(var(--i, 0) * 28ms);

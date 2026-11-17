@@ -68,9 +68,10 @@ export interface Reader {
   speak(text: string, options?: { pace?: number }): Promise<void>;
   /**
    * Plays audio made earlier by synthesize() (e.g. to show its timings before playing, or to play it again) without
-   * making it again. Call from a click, like speak(). Emits the same events as speak().
+   * making it again. `from` starts that many seconds in (e.g. at a word's start). Call from a click, like speak(); a
+   * playback already running is replaced. Emits the same events as speak().
    */
-  play(synthesis: Synthesis): Promise<void>;
+  play(synthesis: Synthesis, options?: { from?: number }): Promise<void>;
   stop(): void;
   /** Seconds into the audio being heard now, or null when nothing is playing. */
   position(): number | null;
@@ -216,7 +217,7 @@ export async function createReader(options: ReaderOptions): Promise<Reader> {
    * Plays audio, made now or earlier, and follows its words: the shared body of speak() and play(). Starting again,
    * or stop(), ends the previous run. Callers unlock the player first, while the user's gesture still counts.
    */
-  const perform = async (getAudio: () => Promise<Synthesis>): Promise<void> => {
+  const perform = async (getAudio: () => Promise<Synthesis>, from = 0): Promise<void> => {
     const run = ++speakRun;
     player.stop();
     let stopFollowing: (() => void) | null = null;
@@ -225,7 +226,7 @@ export async function createReader(options: ReaderOptions): Promise<Reader> {
       if (run !== speakRun) return;
       setState('playing');
       if (audio.timings) events.emit('timings', audio.timings);
-      const playing = player.play(audio.pcm, audio.sampleRate);
+      const playing = player.play(audio.pcm, audio.sampleRate, from);
       stopFollowing = audio.timings ? followWords(audio.timings, run) : null;
       await playing;
     }
@@ -258,9 +259,9 @@ export async function createReader(options: ReaderOptions): Promise<Reader> {
         return synthesize(text, speakOptions);
       });
     },
-    play(synthesis) {
+    play(synthesis, playOptions) {
       player.unlock();
-      return perform(async () => synthesis);
+      return perform(async () => synthesis, playOptions?.from ?? 0);
     },
     stop() {
       speakRun++;

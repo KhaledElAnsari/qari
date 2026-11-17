@@ -521,7 +521,6 @@ function renderTimeline(next: WordTimings): void {
     // The same audio again (Read after Prepare audio, or a replay): just rewind the ribbon.
     for (const segment of segments.values()) segment.classList.remove('read', 'current');
     elements.playhead.style.transform = 'translateX(0)';
-    elements.ribbonScroll.scrollLeft = 0;
     setClock(0, next.duration);
     return;
   }
@@ -535,8 +534,15 @@ function renderTimeline(next: WordTimings): void {
     segment.style.insetInlineStart = percent(word.start);
     segment.style.width = percent(word.end - word.start);
     segment.style.setProperty('--i', String(Math.min(order, 16)));
-    segment.setAttribute('aria-label', `${word.text}: ${secondsText(word.start)} to ${secondsText(word.end)}`);
+    segment.setAttribute('role', 'button');
+    segment.setAttribute('aria-label', `${word.text}: ${secondsText(word.start)} to ${secondsText(word.end)}. Play from here`);
     for (const type of ['pointerenter', 'focus']) segment.addEventListener(type, () => describeWord(word));
+    segment.addEventListener('click', () => playFromWord(word.start));
+    segment.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      playFromWord(word.start);
+    });
     segments.set(word.displayIndex, segment);
     return segment;
   });
@@ -565,7 +571,7 @@ function renderTimeline(next: WordTimings): void {
   setStat(elements.statPace, String(Math.round(next.stats.wordsPerMinute)), 'wpm');
   setStat(elements.statPauses, String(Math.round(next.stats.pausePercent)), '%');
   elements.timingJson.textContent = JSON.stringify({ duration: next.duration, stats: next.stats, words: next.words, displayWords: next.displayWords }, null, 1);
-  elements.readout.replaceChildren('مرّر المؤشر على كلمة لترى توقيتها · ', Object.assign(document.createElement('span'), { textContent: 'Hover or focus a word to see its timing.', lang: 'en', dir: 'ltr' }));
+  elements.readout.replaceChildren('مرّر المؤشر على كلمة لترى توقيتها، وانقرها لتبدأ منها · ', Object.assign(document.createElement('span'), { textContent: 'Hover a word to see its timing; click it to play from there.', lang: 'en', dir: 'ltr' }));
   setClock(0, total);
   fitLabels();
   log(`timings: ${heard.length} words over ${total.toFixed(2)} s`);
@@ -590,10 +596,19 @@ function keepPlayheadInView(offset: number): void {
   ribbonScrollUntil = performance.now() + (smooth ? 450 : 0);
 }
 
+/** A word on the ribbon was clicked: play from its start (replacing any playback), if the audio is ready. */
+function playFromWord(start: number): void {
+  if (modelBusy || !audio) return;
+  void play(start);
+}
+
 /** Moves the playhead with the audio, every frame, while the voice reads. */
+let playheadLoop = 0;
+
 function followPlayhead(): void {
+  const loop = ++playheadLoop;
   const step = () => {
-    if (!reader || !timings || document.body.dataset.playback !== 'playing') return;
+    if (loop !== playheadLoop || !reader || !timings || document.body.dataset.playback !== 'playing') return;
     const position = reader.position();
     if (position !== null) {
       const fraction = Math.min(position / Math.max(timings.duration, 0.001), 1);
@@ -632,9 +647,14 @@ function hideReadingView(): void {
   elements.text.hidden = false;
 }
 
-async function play(): Promise<void> {
+/** Counts playbacks, so one that was replaced (Read again, a word clicked) doesn't tidy up the one now playing. */
+let playRun = 0;
+
+/** Plays the prepared audio, from `from` seconds in (a clicked word's start) or from the beginning. */
+async function play(from = 0): Promise<void> {
   const prepared = audio;
   if (!reader || !prepared) return;
+  const run = ++playRun;
   clearError();
   elements.stop.disabled = false;
   const startedAt = performance.now();
@@ -657,7 +677,7 @@ async function play(): Promise<void> {
     describeWord(word);
   });
   try {
-    await reader.play(prepared);
+    await reader.play(prepared, { from });
   }
   catch {
     // Shown through the error event; pressing play again is the retry.
@@ -665,6 +685,8 @@ async function play(): Promise<void> {
   finally {
     stopListening();
     stopHighlighting();
+    // Replaced by a newer playback: leave the reading view, ribbon and buttons to it.
+    if (run !== playRun) return;
     hideReadingView();
     // The word being read when playback ended was heard (at least in part).
     for (const segment of segments.values()) {
