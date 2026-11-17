@@ -79,7 +79,7 @@ Full guide: `docs/deployment.md`. Khaled deploys to Hostinger web hosting; GitHu
 
 - [Certain] From nipponjo's `tts_arabic` source: the acoustic model takes `token_ids` (int64 `[1, T]`), `pace` (float32, > 1 is faster), `speaker` (int32), `pitch_mul`, `pitch_add` (float32), and returns a mel spectrogram `[1, 80, frames]`. Vocos takes `mel_spec` and `denoise` (float32, default 0.005) and returns `[1, samples]` at 22,050 Hz. Output is peak-normalised to 0.9, as in the Python package.
 - **VoiceConfig change:** a nipponjo voice is two ONNX files (Mixer-TTS-128 + Vocos 22k). The PRD's config has one `model`. Added an optional `vocoder` field with the same shape. Piper voices leave it out.
-- **`sizeBytes` is optional.** [Certain] The download progress uses `Content-Length` first and falls back to `sizeBytes`; the example configs leave it out because the sizes couldn't be measured from this workspace (Hugging Face is blocked here). Fill them in once measured.
+- **`sizeBytes` is optional.** [Certain] The download progress uses `Content-Length` first and falls back to `sizeBytes`; the example configs set it (measured 2026-11-17), so the demo's download bar knows the full total before the second file starts.
 - [Certain] Example configs use **local** model files: `models/mixer128.onnx` and `models/vocos22.onnx`, relative to the config, served by the demo from `voices/models/` (Khaled downloads them by hand; see that folder's README). Superseded the earlier guessed Hugging Face URLs.
 - [Certain] Versions in the example configs come from the upload timestamps in `tts_arabic/urls.py`: mixer128 `2024-09-20`, vocos22 `2024-09-21`.
 - **Timings in Q1 (superseded by Q4 below):** both configs say `timings: "native"` with `durationOutput: "durations"` (the PRD target). The stock mixer128 is the *unpatched* model, so it has no `durations` output yet; the adapter returns audio without durations and the reader emits a `warning`. Q4 switches the file to the patched `mixer128_dur.onnx` (in `voices/models/`) and turns the warning into a load error.
@@ -114,7 +114,7 @@ This workspace has no real voice files and no Safari, so these are open:
 1. Put `mixer128_dur.onnx` (see `voices/models/README.md`) and `vocos22.onnx` into `voices/models/`.
 2. Male sound and Female sound actually speak, on Chrome and Safari, from `npm run dev` over HTTPS or localhost.
 3. OPFS cache survives a reload on Safari (Chrome is covered by the browser test).
-4. The sizes (`sizeBytes`) and, if wanted, `sha256` of the two files, to fill into `voices/*.json`.
+4. ~~The sizes (`sizeBytes`)~~ (done 2026-11-17) and, if wanted, `sha256` of the two files, to fill into `voices/*.json`.
 5. On a device with a real GPU (your Pixel 8 Pro, the M3): accelerated mode loads and reads, and switching back to default mode works.
 
 ## Not built yet (by milestone)
