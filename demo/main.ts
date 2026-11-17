@@ -5,7 +5,8 @@
  * Also checks that the model files are on the server and can clear the saved voice files (OPFS).
  */
 import { clearVoiceCache, createReader, encodeWav, splitDisplayWords, loadVoiceConfig, MODE_LABELS, probeDevice, QariError } from '@khaledelansari/qari-core';
-import type { Backend, LoadProgress, Reader, Synthesis, VoiceConfig, WordTimings } from '@khaledelansari/qari-core';
+import type { Backend, LoadProgress, Reader, ReaderState, Synthesis, VoiceConfig, WordTimings } from '@khaledelansari/qari-core';
+import { applyLocale, locale, pick, t } from './i18n';
 import '@khaledelansari/qari-element';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -44,6 +45,7 @@ const elements = {
   statPace: $('stat-pace'),
   statPauses: $('stat-pauses'),
   timingJson: $('timing-json'),
+  locale: $<HTMLButtonElement>('locale'),
   clock: $('clock'),
   download: $<HTMLButtonElement>('download'),
   fileInfo: $('file-info'),
@@ -60,6 +62,8 @@ let timings: WordTimings | null = null;
 let segments = new Map<number, HTMLElement>();
 /** Set when the listener presses Stop, so the clock isn't moved to the end. */
 let stoppedByListener = false;
+/** Last playback state, so its label can be redrawn in another language. */
+let playbackState: ReaderState | null = null;
 /** The prepared audio for the current text, voice and mode; Read plays it. Null until Prepare audio, or after a change. */
 let audio: Synthesis | null = null;
 /** True while the model is loading or reloading (Prepare audio, a voice or mode switch, clearing saved files). */
@@ -73,8 +77,10 @@ function updateAudioControls(): void {
   elements.play.disabled = unavailable;
   elements.download.disabled = unavailable;
   elements.fileInfo.textContent = audio
-    ? `${(audio.pcm.length / audio.sampleRate).toFixed(1)} s · WAV · ${audio.sampleRate / 1000} kHz · mono · ${fileSize(44 + audio.pcm.length * 2)}`
-    : 'لا يوجد صوت بعد · No audio yet';
+    // Each Latin piece isolated (U+2068 … U+2069), so Arabic text around it doesn't reorder "204 KB" or "22.05 kHz".
+    ? [`${(audio.pcm.length / audio.sampleRate).toFixed(1)} ${t('seconds')}`, 'WAV', `${audio.sampleRate / 1000} kHz`, t('mono'), fileSize(44 + audio.pcm.length * 2)]
+      .map(part => `\u2068${part}\u2069`).join(' · ')
+    : t('noAudioYet');
 }
 
 /** Saves the prepared audio as a WAV file. It exists only in this page's memory, so this is the only way to keep it. */
@@ -120,11 +126,7 @@ const selectedMode = () => mode;
 /** Shows a mode as chosen in the list and on its trigger (without switching the reader). */
 function showMode(next: Backend): void {
   mode = next;
-  elements.modeValue.replaceChildren(
-    Object.assign(document.createElement('span'), { textContent: MODE_LABELS[next].ar }),
-    ' ',
-    Object.assign(document.createElement('small'), { textContent: MODE_LABELS[next].en, lang: 'en' }),
-  );
+  elements.modeValue.textContent = pick(MODE_LABELS[next]);
   for (const option of modeOptions()) option.setAttribute('aria-selected', String(option.dataset.value === next));
 }
 
@@ -169,9 +171,7 @@ function buildModeList(): void {
     option.setAttribute('role', 'option');
     option.dataset.value = value;
     option.append(
-      Object.assign(document.createElement('span'), { textContent: MODE_LABELS[value].ar }),
-      ' ',
-      Object.assign(document.createElement('small'), { textContent: MODE_LABELS[value].en, lang: 'en' }),
+      Object.assign(document.createElement('span'), { className: 'label', textContent: pick(MODE_LABELS[value]) }),
       Object.assign(document.createElement('span'), { className: 'check', textContent: '✓' }),
     );
     option.querySelector('.check')?.setAttribute('aria-hidden', 'true');
@@ -205,7 +205,14 @@ function buildModeList(): void {
   });
 }
 
-const readyText = (activeReader: Reader) => `Ready · ${activeReader.voice.label.en} · ${MODE_LABELS[activeReader.backend].en}`;
+const readyText = (activeReader: Reader) => `${t('ready')} · ${pick(activeReader.voice.label)} · ${pick(MODE_LABELS[activeReader.backend])}`;
+
+/** The status line keeps how it was made, so switching language redraws it in the new one. */
+let stageText: () => string = () => t('notLoaded');
+function setStage(render: () => string): void {
+  stageText = render;
+  elements.stage.textContent = render();
+}
 
 /** The error on screen, so one reported both as an event and as a rejection is shown once. */
 let lastShownError: unknown = null;
@@ -215,10 +222,7 @@ function showError(error: unknown): void {
   if (error === lastShownError && !elements.message.hidden) return;
   lastShownError = error;
   const qariError = error instanceof QariError ? error : new QariError('unexpected', String(error));
-  elements.message.replaceChildren(
-    Object.assign(document.createElement('span'), { textContent: qariError.text.ar, lang: 'ar' }),
-    Object.assign(document.createElement('span'), { textContent: qariError.text.en, lang: 'en', dir: 'ltr' }),
-  );
+  elements.message.textContent = pick(qariError.text);
   elements.message.hidden = false;
   log(`error ${qariError.code}: ${qariError.detail ?? ''}`);
   if (qariError.code === 'voice-unavailable') void explainUnavailableVoice();
@@ -287,7 +291,7 @@ async function clearCache(): Promise<boolean> {
     await reader?.dispose();
     reader = null;
     elements.progress.value = 0;
-    elements.stage.textContent = 'Not loaded';
+    setStage(() => t('notLoaded'));
     setPhase('idle');
     audio = null;
     showTimingEmpty();
@@ -321,14 +325,14 @@ function showProgress(progress: LoadProgress): void {
     elements.progress.max = Math.max(progress.totalBytes, 1);
     elements.progress.value = progress.loadedBytes;
     const total = progress.totalBytes > 0 ? ` / ${megabytes(progress.totalBytes)}` : '';
-    elements.stage.textContent = progress.fromCache
-      ? `From cache (${megabytes(progress.loadedBytes)} MB)`
-      : `Downloading ${megabytes(progress.loadedBytes)}${total} MB`;
+    setStage(() => progress.fromCache
+      ? `${t('fromCache')} (${megabytes(progress.loadedBytes)} MB)`
+      : `${t('downloading')} ${megabytes(progress.loadedBytes)}${total} MB`);
     return;
   }
   elements.progress.removeAttribute('value');
   setPhase('preparing');
-  elements.stage.textContent = progress.stage === 'preparing' ? 'Preparing…' : 'Warming up…';
+  setStage(() => t(progress.stage === 'preparing' ? 'preparing' : 'warming'));
 }
 
 /** The selected voice, exactly as its config describes it (model files come only from the configs). */
@@ -343,7 +347,8 @@ async function loadVoices(): Promise<void> {
   const defaultVoice = voices.find(voice => voice.isDefault) ?? voices[0];
   for (const voice of voices) {
     const label = document.createElement('label');
-    label.innerHTML = `<input type="radio" name="voice" value="${voice.id}"><span>${voice.label.ar}</span> <small lang="en">${voice.label.en}</small>`;
+    label.innerHTML = `<input type="radio" name="voice" value="${voice.id}"><span class="label"></span>`;
+    (label.querySelector('.label') as HTMLElement).textContent = pick(voice.label);
     const radio = label.querySelector('input') as HTMLInputElement;
     radio.checked = voice === defaultVoice;
     radio.addEventListener('change', discardAudio);
@@ -360,7 +365,8 @@ function attachReaderListeners(activeReader: Reader): void {
   activeReader.on('warning', message => log(`warning: ${message}`));
   activeReader.on('error', showError);
   activeReader.on('state', (state) => {
-    elements.playback.textContent = state;
+    playbackState = state;
+    elements.playback.textContent = t(`state.${state}`);
     document.body.dataset.playback = state;
   });
   activeReader.on('timings', (next) => {
@@ -410,7 +416,7 @@ async function prepare(): Promise<void> {
   setModelBusy(true);
   clearError();
   discardAudio();
-  elements.stage.textContent = 'Preparing…';
+  setStage(() => t('preparing'));
   setPhase('downloading', 0);
   try {
     const activeReader = await loadSelectedVoice();
@@ -418,13 +424,13 @@ async function prepare(): Promise<void> {
     await makeAudio(activeReader);
     elements.progress.max = 1;
     elements.progress.value = 1;
-    elements.stage.textContent = readyText(activeReader);
+    setStage(() => readyText(activeReader));
     setPhase('ready');
   }
   catch (error) {
     // A failed switch leaves the reader as it was (e.g. accelerated mode falls back to default): show that.
     if (reader) showMode(reader.backend);
-    elements.stage.textContent = reader ? 'No audio yet' : 'Not loaded';
+    setStage(() => t(reader ? 'noAudioYet' : 'notLoaded'));
     setPhase('idle');
     showError(error);
   }
@@ -433,11 +439,11 @@ async function prepare(): Promise<void> {
   }
 }
 
-const secondsText = (value: number) => `${value.toFixed(2)} s`;
+const secondsText = (value: number) => `${value.toFixed(2)} ${t('seconds')}`;
 
 /** Player clock: time heard / total length. */
 const setClock = (position: number, total: number) => {
-  elements.clock.textContent = `${position.toFixed(1)} / ${total.toFixed(1)} s`;
+  elements.clock.textContent = `${position.toFixed(1)} / ${total.toFixed(1)} ${t('seconds')}`;
 };
 
 function setStat(element: HTMLElement, value: string, unit: string): void {
@@ -504,7 +510,7 @@ function discardAudio(): void {
   showTimingEmpty();
   if (reader && hadAudio) {
     setPhase('idle');
-    elements.stage.textContent = 'Changed · prepare the audio again';
+    setStage(() => t('changed'));
   }
   updateAudioControls();
 }
@@ -562,7 +568,7 @@ function renderTimeline(next: WordTimings): void {
   const step = [0.5, 1, 2, 5, 10, 30, 60].find(candidate => candidate * pixelsPerSecond >= 56) ?? 60;
   const ticks: HTMLElement[] = [];
   for (let at = 0; at <= total + 1e-6; at += step) {
-    const tick = Object.assign(document.createElement('span'), { className: 'tick', textContent: `${Number(at.toFixed(1))}s` });
+    const tick = Object.assign(document.createElement('span'), { className: 'tick', textContent: `${Number(at.toFixed(1))}${t('seconds')}` });
     tick.style.insetInlineStart = percent(at);
     ticks.push(tick);
   }
@@ -570,8 +576,8 @@ function renderTimeline(next: WordTimings): void {
 
   // The stats come from the engine (timings.stats), so hosts get the same numbers.
   elements.statWords.textContent = String(next.stats.words);
-  setStat(elements.statLength, total.toFixed(2), 's');
-  setStat(elements.statPace, String(Math.round(next.stats.wordsPerMinute)), 'wpm');
+  setStat(elements.statLength, total.toFixed(2), t('seconds'));
+  setStat(elements.statPace, String(Math.round(next.stats.wordsPerMinute)), t('wpm'));
   setStat(elements.statPauses, String(Math.round(next.stats.pausePercent)), '%');
   elements.timingJson.textContent = JSON.stringify({ duration: next.duration, stats: next.stats, words: next.words, displayWords: next.displayWords }, null, 1);
   // Empty until a word is hovered, focused or read; the tips below the ribbon explain how.
@@ -702,6 +708,38 @@ async function play(from = 0): Promise<void> {
   }
 }
 
+/**
+ * Switches the interface language and redraws everything already on screen in it: fixed text (data-i18n), the status
+ * line, playback state, file details, voice and mode names, an error being shown, and the timing card.
+ */
+function switchLocale(): void {
+  applyLocale(locale() === 'ar' ? 'en' : 'ar');
+  elements.stage.textContent = stageText();
+  if (playbackState) elements.playback.textContent = t(`state.${playbackState}`);
+  updateAudioControls();
+  showMode(mode);
+  for (const option of modeOptions()) {
+    const label = option.querySelector('.label');
+    if (label) label.textContent = pick(MODE_LABELS[option.dataset.value as Backend]);
+  }
+  for (const label of elements.voices.querySelectorAll('label')) {
+    const voice = voices.find(candidate => candidate.id === label.querySelector('input')?.value);
+    const text = label.querySelector('.label');
+    if (voice && text) text.textContent = pick(voice.label);
+  }
+  if (!elements.message.hidden && lastShownError instanceof QariError) elements.message.textContent = pick(lastShownError.text);
+  elements.readout.replaceChildren();
+  if (timings) {
+    // Redraw the ribbon, ticks and stats in the new language (a new object, so it isn't treated as a replay).
+    const current = timings;
+    timings = null;
+    renderTimeline(current);
+  }
+}
+
+applyLocale();
+elements.stage.textContent = stageText();
+elements.locale.addEventListener('click', switchLocale);
 buildModeList();
 elements.prepare.addEventListener('click', () => void prepare());
 elements.play.addEventListener('click', () => void play());
@@ -739,12 +777,9 @@ void probeDevice().then((probe) => {
   if (probe.backend !== 'webgpu') {
     // Still selectable: choosing it explains, in plain words, why it can't run here.
     // Each language in its own piece, so a narrow screen wraps between them instead of interleaving the two.
-    const note = Object.assign(document.createElement('small'), { className: 'note' });
-    note.append(
-      Object.assign(document.createElement('span'), { textContent: 'غير متاح على هذا الجهاز' }),
-      ' · ',
-      Object.assign(document.createElement('span'), { textContent: 'not available on this device', lang: 'en', dir: 'ltr' }),
-    );
+    // data-i18n, so switching language translates it too.
+    const note = Object.assign(document.createElement('small'), { className: 'note', textContent: t('notAvailableHere') });
+    note.dataset.i18n = 'notAvailableHere';
     const accelerated = document.getElementById('mode-webgpu');
     accelerated?.insertBefore(note, accelerated.querySelector('.check'));
     note.before(' ');

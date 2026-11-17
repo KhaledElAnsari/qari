@@ -32,6 +32,8 @@ async function serveTestVoices(context: BrowserContext, options: { missingModel?
   return modelRequests;
 }
 
+// The demo shows one interface language at a time, picked from the browser's language: these tests run in an English
+// browser (Playwright's default en-US), so they check the English text.
 test.describe('Q1: load a voice, default or accelerated mode, synthesize in a Worker', () => {
   test('a headless browser with no real GPU reports accelerated mode as unavailable', async ({ page }) => {
     await page.goto('/');
@@ -85,7 +87,6 @@ test.describe('Q1: load a voice, default or accelerated mode, synthesize in a Wo
     await expect(page.getByRole('button', { name: /Read/ })).toBeDisabled();
     await page.getByRole('button', { name: /Prepare audio/ }).click();
     const message = page.getByTestId('message');
-    await expect(message).toContainText('الوضع المسرَّع لا يعمل على هذا الجهاز');
     await expect(message).toContainText('Accelerated mode doesn\'t work on this device. Use default mode.');
     await expect(message).not.toContainText(/webgpu|wasm|gpu|onnx/i);
     await expect(page.getByTestId('mode')).toContainText('default mode');
@@ -100,7 +101,7 @@ test.describe('Q1: load a voice, default or accelerated mode, synthesize in a Wo
     await page.goto(`/?voice-base=${TEST_VOICE_BASE}`);
     await page.getByRole('button', { name: /Prepare audio/ }).click();
     const message = page.getByTestId('message');
-    await expect(message).toContainText('هذا الصوت غير متاح الآن');
+    await expect(message).toContainText('This voice isn\'t available right now');
     await expect(message).not.toContainText(/http|404|onnx/i);
     await expect(page.getByTestId('log')).toContainText('error voice-unavailable: Model');
   });
@@ -113,6 +114,6 @@ test.describe('Q1: load a voice, default or accelerated mode, synthesize in a Wo
     await page.locator('#text').fill('MIT 2025');
     await expect(page.getByRole('button', { name: /Read/ })).toBeDisabled();
     await page.getByRole('button', { name: /Prepare audio/ }).click();
-    await expect(page.getByTestId('message')).toContainText('لا يوجد نص يمكن قراءته');
+    await expect(page.getByTestId('message')).toContainText('There\'s no text to read');
   });
 });
