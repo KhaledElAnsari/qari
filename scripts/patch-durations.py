@@ -5,7 +5,7 @@ tokens before decoding); the stock export just doesn't return them. This exposes
 `/Cast_4_output_0` (int64, [batch, token]), as a second output named `durations`. Nothing else changes:
 `mel_spec` is identical, and the frame counts sum to its length.
 
-Run: python3 -I scripts/patch-durations.py voices/models/mixer128.onnx voices/models/mixer128_dur.onnx
+Run: python3 -I scripts/patch-durations.py voices/models/nipponjo/mixer128.onnx voices/models/nipponjo/mixer128_dur.onnx
 Needs: pip install onnx (and onnxruntime + numpy for the check this script runs at the end).
 """
 import sys

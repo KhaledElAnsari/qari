@@ -6,5 +6,7 @@ playwright-report/
 *.tsbuildinfo
 .DS_Store
 
-# Model files are large and downloaded by hand (voices/models/README.md). Delete this line to commit them.
+# Voice files are large and downloaded by hand or by npm run fetch-models (voices/models/README.md).
+# One folder per model family; Bayan's config and .bin files belong with its models, so whole folders are ignored.
+voices/models/*/
 voices/models/*.onnx

@@ -4,7 +4,7 @@
  * someone else's files.
  * Also checks that the model files are on the server and can clear the saved voice files (OPFS).
  */
-import { clearVoiceCache, createReader, encodeWav, splitDisplayWords, loadVoiceConfig, MODE_LABELS, probeDevice, QariError } from '@khaledelansari/qari-core';
+import { clearVoiceCache, createReader, encodeWav, splitDisplayWords, loadVoiceConfig, MODE_LABELS, modelKey, probeDevice, QariError, voiceFiles } from '@khaledelansari/qari-core';
 import type { Backend, LoadProgress, Reader, ReaderState, Synthesis, VoiceConfig, WordTimings } from '@khaledelansari/qari-core';
 import { applyLocale, locale, pick, t } from './i18n';
 import '@khaledelansari/qari-element';
@@ -235,8 +235,8 @@ const clearError = () => {
 
 /** Model URLs of every listed voice, once each. */
 function modelUrls(): string[] {
-  const urls = voices.flatMap(voice => [voice.model.url, voice.vocoder?.url]);
-  return [...new Set(urls.filter((url): url is string => Boolean(url)).map(url => new URL(url, voiceBase).href))];
+  const urls = voices.flatMap(voice => voiceFiles(voice).map(file => file.url));
+  return [...new Set(urls.map(url => new URL(url, voiceBase).href))];
 }
 
 /**
@@ -379,7 +379,7 @@ function attachReaderListeners(activeReader: Reader): void {
   });
 }
 
-const sameVoice = (a: VoiceConfig, b: VoiceConfig) => a.id === b.id && a.model.url === b.model.url && a.vocoder?.url === b.vocoder?.url;
+const sameVoice = (a: VoiceConfig, b: VoiceConfig) => a.id === b.id && modelKey(a) === modelKey(b);
 
 /**
  * Gets the reader to the chosen voice and mode: loads it the first time, otherwise switches only what changed

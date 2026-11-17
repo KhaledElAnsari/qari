@@ -1,6 +1,6 @@
 /**
  * Downloads the model files the example voices need into voices/models/, before a site build (docs/deployment.md).
- * Reads every voices/*.json config, collects its relative model URLs (e.g. models/mixer128.onnx), and fetches each
+ * Reads every voices/*.json config, collects its relative model URLs (e.g. models/nipponjo/vocos22.onnx), and fetches each
  * missing file from QARI_MODELS_BASE_URL + file name. Files already there are kept. A config's sha256 is checked.
  *
  * Run: QARI_MODELS_BASE_URL=https://github.com/<owner>/<repo>/releases/download/models-v1/ node tools/fetch-models.ts
@@ -19,7 +19,7 @@ interface ModelFile {
 }
 
 interface NeededFile {
-  /** Path relative to voices/, e.g. models/vocos22.onnx. */
+  /** Path relative to voices/, e.g. models/nipponjo/vocos22.onnx. */
   path: string;
   sha256?: string;
   voiceIds: string[];
@@ -36,8 +36,8 @@ async function neededFiles(): Promise<NeededFile[]> {
   const configNames = (await readdir(VOICES_DIRECTORY)).filter(name => name.endsWith('.json') && name !== 'index.json');
   const files = new Map<string, NeededFile>();
   for (const configName of configNames) {
-    const voice = JSON.parse(await readFile(join(VOICES_DIRECTORY, configName), 'utf8')) as { id: string; model: ModelFile; vocoder?: ModelFile };
-    for (const model of [voice.model, voice.vocoder]) {
+    const voice = JSON.parse(await readFile(join(VOICES_DIRECTORY, configName), 'utf8')) as { id: string; model: ModelFile; vocoder?: ModelFile; files?: Record<string, ModelFile> };
+    for (const model of [voice.model, voice.vocoder, ...Object.values(voice.files ?? {})]) {
       if (!model || !isRelative(model.url)) continue;
       const file = files.get(model.url) ?? { path: model.url, sha256: model.sha256, voiceIds: [] };
       file.voiceIds.push(voice.id);

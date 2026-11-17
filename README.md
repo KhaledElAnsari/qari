@@ -25,7 +25,7 @@ Tested on a fresh copy on 2026-11-16 (install about 10 s, then 147 tests pass an
 2. Unpack the repo and open the folder.
 3. Run `git init` first: `npm install` wires the git hooks, and that needs a git folder.
 4. Run `npm install`.
-5. Put the voice files in `voices/models/`: `mixer128_dur.onnx` (built from `mixer128.onnx` by `scripts/patch-durations.py`) and `vocos22.onnx` (how: [voices/models/README.md](voices/models/README.md)).
+5. Put the voice files in `voices/models/nipponjo/`: `mixer128_dur.onnx` (built from `mixer128.onnx` by `scripts/patch-durations.py`) and `vocos22.onnx` (how: [voices/models/README.md](voices/models/README.md)).
 6. Run `npm run dev` and open http://localhost:5173 in Chrome, then press **Prepare audio** and **Read**.
 7. Optional:
    - `QARI_ISOLATE=1 npm run dev` for multithreaded default mode.
@@ -68,7 +68,7 @@ The demo is static files on any HTTPS host. `.github/workflows/deploy.yml` build
 
 ## Voices
 
-`voices/male-sound.json` (default, nipponjo speaker 1) and `voices/female-sound.json` (speaker 3) use the same two model files, Mixer-TTS-128 + Vocos 22k, from `voices/models/` (download them first: [voices/models/README.md](voices/models/README.md)). Normalization always runs (from Q3). قارئ has no tashkeel step in the beta: the voices read the text as pasted, so paste **diacritized** Arabic for the best pronunciation.
+`voices/male-sound.json` (default, nipponjo speaker 1) and `voices/female-sound.json` (speaker 3) use the same two model files, Mixer-TTS-128 + Vocos 22k, from `voices/models/nipponjo/` (download them first: [voices/models/README.md](voices/models/README.md)). `voices/bayan.json` is **Bayan (Murad)**, a larger, more natural voice (NVIDIA Open Model License; seven files, 705 MB in `voices/models/bayan/`). It is meant for accelerated mode (about real time on an M4 Pro; default mode works but is ~2.5× slower than real time) and has word timings from its attention (±0.1–0.2 s) but no speed control: [docs/decisions.md](docs/decisions.md#bayan-voice-magpie-tts-runtime-started-2026-11-17). Normalization always runs (from Q3). قارئ has no tashkeel step in the beta: the voices read the text as pasted, so paste **diacritized** Arabic for the best pronunciation.
 
 ## Scripts
 

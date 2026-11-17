@@ -9,7 +9,7 @@ What gets deployed is `demo/dist/`, the output of `npm run build`:
 | `index.html`, `assets/index-*.js`, `assets/synth.worker-*.js` | ≈ 155 KB | smaller |
 | `assets/ort-wasm-simd-threaded.asyncify-*.wasm` (onnxruntime's engine, CPU + GPU) | 28.7 MB | 6.7–8.3 MB |
 | `male-sound.json`, `female-sound.json`, `index.json` | < 1 KB | — |
-| `models/mixer128_dur.onnx`, `models/vocos22.onnx` (the voice files; not in git) | tens of MB | barely shrinks |
+| `models/nipponjo/mixer128_dur.onnx`, `models/nipponjo/vocos22.onnx` (the voice files; not in git) | tens of MB | barely shrinks |
 
 Before you share the link, know what visitors will see:
 - **It's the developer test page, not the reader.** It has a log and a mode menu. The real `<qari-reader>` with read-along arrives in Q5.
@@ -34,13 +34,13 @@ What the host does decide:
 
 ## Step 0 (every host): the voice files
 
-The voice files are kept out of git (`voices/models/*.onnx` is ignored). Two ways to get them into a build:
+The voice files are kept out of git (the folders in `voices/models/` are ignored). Two ways to get them into a build:
 
-- **By hand (local builds):** copy `mixer128_dur.onnx` and `vocos22.onnx` into `voices/models/`, then run `npm run build`.
+- **By hand (local builds):** copy `mixer128_dur.onnx` and `vocos22.onnx` into `voices/models/nipponjo/` (and Bayan's files into `voices/models/bayan/`), then run `npm run build`.
 - **From a release (automatic deploys):** create a release of this repo tagged `models-v1` with both files attached under those exact names. `npm run fetch-models` downloads any missing file before the build. The deploy workflow does this for you; the repo must be public.
 
   ```sh
-  gh release create models-v1 voices/models/mixer128_dur.onnx voices/models/vocos22.onnx \
+  gh release create models-v1 voices/models/nipponjo/mixer128_dur.onnx voices/models/nipponjo/vocos22.onnx \
     --title "Voice model files v1" --notes "Model files for the demo. Licence type: non-commercial."
   ```
 

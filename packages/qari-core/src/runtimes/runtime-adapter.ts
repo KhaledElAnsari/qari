@@ -6,6 +6,8 @@ import type { VoiceConfig } from '../voice/voice-config';
 export interface VoiceModels {
   model: Uint8Array;
   vocoder?: Uint8Array;
+  /** VoiceConfig.files, by the same names. */
+  files?: Record<string, Uint8Array>;
 }
 
 /** Per-call options; `normalize` is the developer-only switch (default on: numbers are read as words). */

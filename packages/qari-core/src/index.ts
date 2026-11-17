@@ -7,7 +7,7 @@ export { normalizeForSpeech } from './normalization/normalize';
 export type { SpokenWord } from './normalization/normalize';
 export { numberToWords } from './normalization/arabic-numbers';
 export type { Reader, ReaderEvents, ReaderOptions, ReaderState, Synthesis, SynthesisCallOptions, WordEvent } from './reader/create-reader';
-export { loadVoiceConfig, modelKey, parseVoiceConfig, resolveVoiceUrls } from './voice/voice-config';
+export { loadVoiceConfig, modelKey, parseVoiceConfig, resolveVoiceUrls, voiceFiles } from './voice/voice-config';
 export type { ModelFile, TimingsMode, VoiceConfig, VoiceConfigResult } from './voice/voice-config';
 export type { Backend, ProbeResult, WasmReason } from './backend/backend-probe';
 export { MODE_LABELS, QARI_ERROR_CODES, QariError } from './errors/qari-error';

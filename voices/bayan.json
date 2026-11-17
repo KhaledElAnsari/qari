@@ -1,0 +1,19 @@
+{
+  "id": "bayan-murad",
+  "label": { "en": "Bayan (Murad)", "ar": "بيان (مراد)" },
+  "model": { "url": "models/bayan/decoder_step_fp16.onnx", "sizeBytes": 228286229, "version": "2026-11-17-fp16-webgpu" },
+  "vocoder": { "url": "models/bayan/codec_decoder.onnx", "sizeBytes": 138632952, "version": "2026-11-17-fp32" },
+  "files": {
+    "config": { "url": "models/bayan/bayan_config.json", "sizeBytes": 7640, "version": "2026-11-17" },
+    "textEncoder": { "url": "models/bayan/text_encoder_fp16.onnx", "sizeBytes": 211531883, "version": "2026-11-17-fp16-webgpu" },
+    "ltSample": { "url": "models/bayan/lt_sample_fp16.onnx", "sizeBytes": 129336316, "version": "2026-11-17-fp16-webgpu" },
+    "voiceContext": { "url": "models/bayan/voice_ctx.bin", "sizeBytes": 666624, "version": "2026-11-17" },
+    "bosEmbedding": { "url": "models/bayan/bos_emb.bin", "sizeBytes": 3072, "version": "2026-11-17" }
+  },
+  "runtime": "magpie-tts",
+  "frontend": { "kind": "bayan-chars" },
+  "sampleRate": 22050,
+  "timings": "alignment",
+  "defaultPace": 1,
+  "licence": { "type": "nvidia-open-model-license" }
+}

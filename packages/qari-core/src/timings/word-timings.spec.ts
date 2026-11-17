@@ -1,7 +1,7 @@
 import { prepareArabicText } from '../frontends/arabic-phonetiser/prepare-text';
 import { SEPARATOR_TOKEN, symbolId } from '../frontends/arabic-phonetiser/symbols';
 import { arabicToTokens } from '../frontends/arabic-phonetiser/tokenize';
-import { computeWordTimings, splitDisplayWords } from './word-timings';
+import { computeWordTimings, splitDisplayWords, wordTimingsFromSpans } from './word-timings';
 import { normalizeForSpeech } from '../normalization/normalize';
 import type { WordTimings } from './word-timings';
 
@@ -94,5 +94,24 @@ describe('word timings (Q4)', () => {
     const tokens = ['b', 'a', SEPARATOR_TOKEN, '_eos_'];
     expect(computeWordTimings({ text: 'بَ بَ', tokens, durations: [2, 2, 3, 1], secondsPerFrame: 0.01 })).toEqual({ problem: expect.stringContaining('1 word groups') });
     expect(computeWordTimings({ text: 'بَ', tokens, durations: [2, 2], secondsPerFrame: 0.01 })).toEqual({ problem: expect.stringContaining('4 tokens but 2 durations') });
+  });
+});
+
+describe('wordTimingsFromSpans (voices timed by spans, e.g. Bayan)', () => {
+  it('maps spoken spans to displayed words, with the same shapes and stats', () => {
+    const text = 'وُلِدَ 1950 هنا';
+    const spokenWords = [{ text: 'وُلِدَ', displayIndex: 0 }, { text: 'أَلْفٍ', displayIndex: 1 }, { text: 'وَتِسْعِمِئَةٍ', displayIndex: 1 }, { text: 'هنا', displayIndex: 2 }];
+    const spans = [{ start: 0, end: 0.5 }, { start: 0.5, end: 1 }, { start: 1, end: 2 }, { start: 2.5, end: 3 }];
+    const timings = wordTimingsFromSpans({ text, spokenWords, spans, duration: 4 });
+    if ('problem' in timings) throw new Error(timings.problem);
+    expect(timings.displayWords.map(word => [word.text, word.start, word.end, word.spokenIndexes])).toEqual([
+      ['وُلِدَ', 0, 0.5, [0]], ['1950', 0.5, 2, [1, 2]], ['هنا', 2.5, 3, [3]],
+    ]);
+    expect(timings.words[1]).toMatchObject({ text: '1950', said: 'أَلْفٍ', spoken: true });
+    expect(timings.stats).toEqual({ words: 3, wordsPerMinute: 45, pausePercent: 37.5 });
+  });
+
+  it('reports a span count that doesn\'t match the words', () => {
+    expect(wordTimingsFromSpans({ text: 'a b', spokenWords: [{ text: 'a', displayIndex: 0 }], spans: [], duration: 1 })).toEqual({ problem: '1 spoken words but 0 spans.' });
   });
 });

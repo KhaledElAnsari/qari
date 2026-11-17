@@ -21,6 +21,8 @@ export interface VoiceConfig {
   model: ModelFile;
   /** Second file for two-stage voices (acoustic model + vocoder), e.g. nipponjo Mixer-TTS + Vocos. */
   vocoder?: ModelFile;
+  /** Any further files the runtime needs, by the name its adapter reads (e.g. Bayan's text encoder and config). */
+  files?: Record<string, ModelFile>;
   runtime: 'piper-vits' | 'mixer-tts' | (string & {});
   frontend: { kind: 'piper-phonemize' | 'arabic-phonetiser' | (string & {}); dataUrl?: string };
   sampleRate: number;
@@ -48,6 +50,15 @@ function modelFileProblem(value: unknown, field: string): string | null {
   return null;
 }
 
+function filesProblem(value: unknown): string | null {
+  if (!isObject(value)) return 'files must be an object';
+  for (const [name, file] of Object.entries(value)) {
+    const problem = modelFileProblem(file, `files.${name}`);
+    if (problem) return problem;
+  }
+  return null;
+}
+
 /** Checks a parsed voice-config JSON value and returns it typed, or the first problem found. */
 export function parseVoiceConfig(value: unknown): VoiceConfigResult {
   if (!isObject(value)) return { ok: false, reason: 'voice config must be an object' };
@@ -58,6 +69,7 @@ export function parseVoiceConfig(value: unknown): VoiceConfigResult {
     isOptional(value.isDefault, flag => typeof flag === 'boolean') ? null : 'isDefault must be a boolean',
     modelFileProblem(value.model, 'model'),
     value.vocoder === undefined ? null : modelFileProblem(value.vocoder, 'vocoder'),
+    value.files === undefined ? null : filesProblem(value.files),
     isText(value.runtime) ? null : 'runtime must be a non-empty string',
     isObject(value.frontend) && isText(value.frontend.kind) && isOptional(value.frontend.dataUrl, isText) ? null : 'frontend.kind must be a non-empty string',
     isPositiveNumber(value.sampleRate) ? null : 'sampleRate must be a positive number',
@@ -72,13 +84,19 @@ export function parseVoiceConfig(value: unknown): VoiceConfigResult {
   return { ok: true, voice: value as unknown as VoiceConfig };
 }
 
-/** Resolves relative model, vocoder, sample and data URLs against the URL the config was loaded from. */
+/** Every file of a voice, in download order: model, vocoder, then the named extra files. */
+export function voiceFiles(voice: VoiceConfig): ModelFile[] {
+  return [voice.model, ...(voice.vocoder ? [voice.vocoder] : []), ...Object.values(voice.files ?? {})];
+}
+
+/** Resolves relative model, vocoder, extra-file, sample and data URLs against the URL the config was loaded from. */
 export function resolveVoiceUrls(voice: VoiceConfig, baseUrl: string): VoiceConfig {
   const resolve = (url: string) => new URL(url, baseUrl).href;
   return {
     ...voice,
     model: { ...voice.model, url: resolve(voice.model.url) },
     vocoder: voice.vocoder && { ...voice.vocoder, url: resolve(voice.vocoder.url) },
+    files: voice.files && Object.fromEntries(Object.entries(voice.files).map(([name, file]) => [name, { ...file, url: resolve(file.url) }])),
     frontend: { ...voice.frontend, dataUrl: voice.frontend.dataUrl && resolve(voice.frontend.dataUrl) },
     sampleUrl: voice.sampleUrl && resolve(voice.sampleUrl),
   };
@@ -97,5 +115,6 @@ export async function loadVoiceConfig(url: string | URL): Promise<VoiceConfig> {
 /** Two voices that differ only in speaker or labels share loaded model sessions. */
 export function modelKey(voice: VoiceConfig): string {
   const file = (model: ModelFile | undefined) => (model ? `${model.url}#${model.version}` : '-');
-  return [voice.runtime, voice.frontend.kind, file(voice.model), file(voice.vocoder)].join('|');
+  const extra = Object.entries(voice.files ?? {}).sort(([a], [b]) => a.localeCompare(b)).map(([name, model]) => `${name}=${file(model)}`);
+  return [voice.runtime, voice.frontend.kind, file(voice.model), file(voice.vocoder), ...extra].join('|');
 }

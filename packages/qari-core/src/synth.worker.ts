@@ -7,10 +7,11 @@ import type { Backend, ProbeResult } from './backend/backend-probe';
 import { describeError, QariError, toQariError } from './errors/qari-error';
 import { fetchModel, openCacheDirectory } from './models/model-store';
 import type { FileProgress } from './models/model-store';
+import { MagpieTtsAdapter } from './runtimes/magpie-tts/magpie-tts.adapter';
 import { MixerTtsAdapter } from './runtimes/mixer-tts.adapter';
 import { configureOrt } from './runtimes/ort-session';
 import type { AdapterContext, RuntimeAdapter, VoiceModels } from './runtimes/runtime-adapter';
-import { modelKey } from './voice/voice-config';
+import { modelKey, voiceFiles } from './voice/voice-config';
 import type { ModelFile, VoiceConfig } from './voice/voice-config';
 import type { LoadProgress, WorkerRequest, WorkerResponse } from './worker/worker-protocol';
 
@@ -20,6 +21,7 @@ const PROGRESS_INTERVAL_MS = 100;
 
 const ADAPTERS: Readonly<Record<string, (context: AdapterContext) => RuntimeAdapter>> = {
   'mixer-tts': context => new MixerTtsAdapter(context),
+  'magpie-tts': context => new MagpieTtsAdapter(context),
 };
 
 interface WorkerScope {
@@ -135,7 +137,7 @@ async function load(request: Extract<WorkerRequest, { type: 'load' }>): Promise<
 /** Fetches every file of a voice, reporting combined byte progress. */
 async function downloadModels(voice: VoiceConfig, requestId: number, context: AdapterContext): Promise<VoiceModels> {
   const directory = await openCacheDirectory();
-  const files: ModelFile[] = voice.vocoder ? [voice.model, voice.vocoder] : [voice.model];
+  const files: ModelFile[] = voiceFiles(voice);
   const perFile: FileProgress[] = files.map(file => ({ loadedBytes: 0, totalBytes: file.sizeBytes ?? 0, fromCache: false }));
   let lastPostAt = 0;
 
@@ -163,7 +165,13 @@ async function downloadModels(voice: VoiceConfig, requestId: number, context: Ad
     }));
   }
   report(true);
-  return { model: bytes[0], vocoder: bytes[1] };
+  const extraNames = Object.keys(voice.files ?? {});
+  const firstExtra = voice.vocoder ? 2 : 1;
+  return {
+    model: bytes[0],
+    vocoder: voice.vocoder ? bytes[1] : undefined,
+    files: extraNames.length > 0 ? Object.fromEntries(extraNames.map((name, i) => [name, bytes[firstExtra + i]])) : undefined,
+  };
 }
 
 function postProgress(requestId: number, progress: LoadProgress): void {

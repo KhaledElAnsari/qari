@@ -163,3 +163,45 @@ export function computeWordTimings(input: WordTimingsInput): WordTimings | { pro
     stats,
   };
 }
+
+/**
+ * Word timings from a start and end per spoken word, in seconds (voices that time words without per-token durations,
+ * e.g. Bayan's attention alignment). Same shapes and stats as computeWordTimings; stats come from the unrounded seconds.
+ */
+export function wordTimingsFromSpans(input: { text: string; spokenWords: readonly SpokenWord[]; spans: readonly { start: number; end: number }[]; duration: number }): WordTimings | { problem: string } {
+  const { text, spokenWords, spans, duration } = input;
+  if (spokenWords.length !== spans.length) return { problem: `${spokenWords.length} spoken words but ${spans.length} spans.` };
+  const displayWords = splitDisplayWords(text);
+  const round = (value: number) => Math.round(value * 1000) / 1000;
+
+  const words: SpokenWordTiming[] = spokenWords.map(({ displayIndex, text: said }, index) => {
+    const shown = displayWords[displayIndex].text;
+    const { start, end } = spans[index];
+    return { index, displayIndex, text: shown, ...(said === shown ? {} : { said }), start: round(start), end: round(end), spoken: end > start };
+  });
+
+  let previousEnd = 0;
+  const timedDisplayWords: DisplayWordTiming[] = displayWords.map((word) => {
+    const spokenIndexes = words.filter(spoken => spoken.displayIndex === word.displayIndex).map(spoken => spoken.index);
+    if (spokenIndexes.length === 0) return { displayIndex: word.displayIndex, text: word.text, start: previousEnd, end: previousEnd, spokenIndexes };
+    const start = words[spokenIndexes[0]].start;
+    const end = words[spokenIndexes[spokenIndexes.length - 1]].end;
+    previousEnd = end;
+    return { displayIndex: word.displayIndex, text: word.text, start, end, spokenIndexes };
+  });
+
+  const heardSeconds = spans.reduce((sum, span) => sum + Math.max(0, span.end - span.start), 0);
+  const heardWords = timedDisplayWords.filter(word => word.end > word.start).length;
+  const oneDecimal = (value: number) => Math.round(value * 10) / 10;
+  return {
+    duration: round(duration),
+    words,
+    displayWords: timedDisplayWords,
+    ranges: displayWords.map(({ charStart, charEnd }) => ({ charStart, charEnd })),
+    stats: {
+      words: heardWords,
+      wordsPerMinute: duration > 0 ? oneDecimal(heardWords / (duration / 60)) : 0,
+      pausePercent: duration > 0 ? oneDecimal((1 - heardSeconds / duration) * 100) : 0,
+    },
+  };
+}
