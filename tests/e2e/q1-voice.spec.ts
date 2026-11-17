@@ -111,7 +111,7 @@ test.describe('Q1: load a voice, default or accelerated mode, synthesize in a Wo
     await page.goto(`/?voice-base=${TEST_VOICE_BASE}`);
     await page.getByRole('button', { name: /Prepare audio/ }).click();
     await expect(page.getByTestId('stage')).toHaveText(/^Ready/);
-    await page.locator('#text').fill('MIT 2025');
+    await page.locator('#text').fill('MIT'); // No digits: numbers are read as words, so they count as text to read.
     await expect(page.getByRole('button', { name: /Read/ })).toBeDisabled();
     await page.getByRole('button', { name: /Prepare audio/ }).click();
     await expect(page.getByTestId('message')).toContainText('There\'s no text to read');
