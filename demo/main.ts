@@ -25,6 +25,7 @@ const elements = {
   stage: $('stage'),
   message: $('message'),
   text: $<HTMLTextAreaElement>('text'),
+  normalize: $<HTMLInputElement>('normalize'),
   play: $<HTMLButtonElement>('play'),
   stop: $<HTMLButtonElement>('stop'),
   playback: $('playback'),
@@ -96,6 +97,7 @@ function setModelBusy(busy: boolean): void {
   modelBusy = busy;
   if (busy) closeModeList(false);
   elements.text.disabled = busy;
+  elements.normalize.disabled = busy;
   elements.modeTrigger.disabled = busy;
   elements.prepare.disabled = busy;
   elements.clearCache.disabled = busy;
@@ -481,7 +483,7 @@ async function makeAudio(activeReader: Reader): Promise<void> {
   // Only show the loader if the work takes a moment, so quick runs don't flash.
   const showLoader = window.setTimeout(() => setTimingBusy(true), 150);
   try {
-    audio = await activeReader.synthesize(text);
+    audio = await activeReader.synthesize(text, { normalize: elements.normalize.checked });
     if (audio.timings) renderTimeline(audio.timings);
     else showTimingEmpty();
   }
@@ -710,6 +712,9 @@ elements.stop.addEventListener('click', () => {
 elements.clearCache.addEventListener('click', () => void clearCache());
 elements.download.addEventListener('click', downloadAudio);
 elements.text.addEventListener('input', discardAudio);
+// Reading numbers as words changes the audio, so a change discards it, like an edit. On by default (Firefox may restore it).
+elements.normalize.checked = true;
+elements.normalize.addEventListener('change', discardAudio);
 
 /** Sample texts; "numbers" has Western and Arabic-Indic digits, for testing normalization (Q3, not built yet). */
 const SAMPLES: Readonly<Record<string, string>> = {

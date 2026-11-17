@@ -207,6 +207,9 @@
     .hint { font-size: .85rem; color: var(--muted); margin: .6rem 0 0; }
     .samples { display: flex; flex-wrap: wrap; gap: .5rem; margin-block-start: .8rem; }
     .sample { font-size: .85rem; padding: .3rem .85rem; background: var(--paper); }
+    .option { display: flex; align-items: center; gap: .55rem; margin-block-start: 1rem; cursor: pointer; width: fit-content; }
+    .option input { width: 1.1rem; height: 1.1rem; margin: 0; accent-color: var(--lapis); cursor: pointer; }
+    .option:has(input:disabled) { opacity: .55; cursor: not-allowed; }
 
     .controls { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; }
     .clock { font-size: .9rem; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 7.5rem; text-align: end; }
@@ -322,6 +325,11 @@
       <button autocomplete="off" type="button" class="sample" data-sample="greeting">مثال: تحية · Greeting</button>
       <button autocomplete="off" type="button" class="sample" data-sample="numbers" data-testid="sample-numbers">مثال: أرقام · Numbers</button>
     </div>
+    <label class="option">
+      <input type="checkbox" id="normalize" data-testid="normalize" checked autocomplete="off">
+      <span>اقرأ الأرقام · <span lang="en" dir="ltr">Read numbers</span></span>
+    </label>
+    <p class="keep"><span>قراءة الأرقام آليًا ليست دقيقة 100%، فيمكنك إيقافها وكتابة الأرقام بالكلمات بنفسك.</span><span lang="en" dir="ltr">Reading numbers automatically isn't 100% accurate: you can turn it off and write the numbers as words yourself.</span></p>
   </section>
 
   <section class="card" aria-labelledby="voice-heading">
