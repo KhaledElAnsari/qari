@@ -329,12 +329,12 @@ function renderTimeline(next: WordTimings): void {
   }
   elements.ticks.replaceChildren(...ticks);
 
-  const heardSeconds = heard.reduce((sum, word) => sum + (word.end - word.start), 0);
-  elements.statWords.textContent = String(heard.length);
+  // The stats come from the engine (timings.stats), so hosts get the same numbers.
+  elements.statWords.textContent = String(next.stats.words);
   setStat(elements.statLength, total.toFixed(2), 's');
-  setStat(elements.statPace, String(Math.round((heard.length / total) * 60)), 'wpm');
-  setStat(elements.statPauses, String(Math.max(0, Math.round((1 - heardSeconds / total) * 100))), '%');
-  elements.timingJson.textContent = JSON.stringify({ duration: next.duration, words: next.words, displayWords: next.displayWords }, null, 1);
+  setStat(elements.statPace, String(Math.round(next.stats.wordsPerMinute)), 'wpm');
+  setStat(elements.statPauses, String(Math.round(next.stats.pausePercent)), '%');
+  elements.timingJson.textContent = JSON.stringify({ duration: next.duration, stats: next.stats, words: next.words, displayWords: next.displayWords }, null, 1);
   elements.readout.textContent = 'مرّر المؤشر على كلمة لترى توقيتها · Hover or focus a word to see its timing.';
   elements.timingEmpty.hidden = true;
   elements.timeline.hidden = false;
