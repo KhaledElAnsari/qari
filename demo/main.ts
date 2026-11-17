@@ -18,6 +18,10 @@ const elements = {
   probe: $('probe'),
   isolated: $('isolated'),
   voices: $('voices'),
+  qualityField: $('quality-field'),
+  qualityTrigger: $<HTMLButtonElement>('quality-trigger'),
+  qualityValue: $('quality-value'),
+  qualityList: $('quality-list'),
   modeTrigger: $<HTMLButtonElement>('mode-trigger'),
   modeValue: $('mode-value'),
   modeList: $('mode-list'),
@@ -101,10 +105,14 @@ function downloadAudio(): void {
 /** While the model works, every control waits: text, voice, mode, Prepare audio, Read and the cache button. */
 function setModelBusy(busy: boolean): void {
   modelBusy = busy;
-  if (busy) closeModeList(false);
+  if (busy) {
+    modeList.close(false);
+    qualityList.close(false);
+  }
   elements.text.disabled = busy;
   elements.normalize.disabled = busy;
   elements.modeTrigger.disabled = busy;
+  elements.qualityTrigger.disabled = busy;
   elements.prepare.disabled = busy;
   elements.clearCache.disabled = busy;
   for (const radio of elements.voices.querySelectorAll('input')) radio.disabled = busy;
@@ -120,90 +128,156 @@ const log = (line: string) => {
 
 const megabytes = (bytes: number) => (bytes / MEGABYTE).toFixed(1);
 const MODES: readonly Backend[] = ['wasm', 'webgpu'];
-let mode: Backend = 'wasm';
-const selectedMode = () => mode;
 
-/** Shows a mode as chosen in the list and on its trigger (without switching the reader). */
-function showMode(next: Backend): void {
-  mode = next;
-  elements.modeValue.textContent = pick(MODE_LABELS[next]);
-  for (const option of modeOptions()) option.setAttribute('aria-selected', String(option.dataset.value === next));
+interface SelectList<Value extends string> {
+  readonly value: Value;
+  /** Shows a value as chosen in the list and on its trigger, without calling onChoose. */
+  show(value: Value): void;
+  close(returnFocus: boolean): void;
+  /** Redraws the trigger and option labels (after a language switch). */
+  relabel(): void;
 }
 
-const modeOptions = () => [...elements.modeList.querySelectorAll<HTMLElement>('[role="option"]')];
-const isModeListOpen = () => elements.modeList.hasAttribute('data-open');
+/**
+ * A custom listbox in the page's style (Mode, Quality): a field-like trigger and a floating list that grows from it.
+ * Keyboard: arrows open it and move, Enter or Space chooses, Escape closes; from the keyboard it appears at once.
+ */
+function createSelectList<Value extends string>(options: {
+  name: string;
+  trigger: HTMLButtonElement;
+  valueElement: HTMLElement;
+  list: HTMLElement;
+  values: readonly Value[];
+  initial: Value;
+  label: (value: Value) => string;
+  onChoose: (value: Value) => void;
+}): SelectList<Value> {
+  const { name, trigger, valueElement, list, values, label, onChoose } = options;
+  let value = options.initial;
+  const optionElements = () => [...list.querySelectorAll<HTMLElement>('[role="option"]')];
+  const isOpen = () => list.hasAttribute('data-open');
 
-function setActiveOption(index: number): void {
-  const options = modeOptions();
-  const active = options[(index + options.length) % options.length];
-  for (const option of options) option.classList.toggle('active', option === active);
-  elements.modeList.setAttribute('aria-activedescendant', active.id);
-}
+  const setActive = (index: number) => {
+    const all = optionElements();
+    const active = all[(index + all.length) % all.length];
+    for (const option of all) option.classList.toggle('active', option === active);
+    list.setAttribute('aria-activedescendant', active.id);
+  };
+  const show = (next: Value) => {
+    value = next;
+    valueElement.textContent = label(next);
+    for (const option of optionElements()) option.setAttribute('aria-selected', String(option.dataset.value === next));
+  };
+  const open = (fromKeyboard: boolean) => {
+    list.toggleAttribute('data-instant', fromKeyboard);
+    list.setAttribute('data-open', '');
+    trigger.setAttribute('aria-expanded', 'true');
+    setActive(values.indexOf(value));
+    list.focus();
+  };
+  const close = (returnFocus: boolean) => {
+    if (!isOpen()) return;
+    list.removeAttribute('data-open');
+    trigger.setAttribute('aria-expanded', 'false');
+    if (returnFocus) trigger.focus();
+  };
+  const choose = (next: Value) => {
+    close(true);
+    if (next === value) return;
+    show(next);
+    onChoose(next);
+  };
 
-/** Opens the list on the chosen mode; from the keyboard it appears at once (no animation on keyboard actions). */
-function openModeList(fromKeyboard: boolean): void {
-  elements.modeList.toggleAttribute('data-instant', fromKeyboard);
-  elements.modeList.setAttribute('data-open', '');
-  elements.modeTrigger.setAttribute('aria-expanded', 'true');
-  setActiveOption(MODES.indexOf(mode));
-  elements.modeList.focus();
-}
-
-function closeModeList(returnFocus: boolean): void {
-  if (!isModeListOpen()) return;
-  elements.modeList.removeAttribute('data-open');
-  elements.modeTrigger.setAttribute('aria-expanded', 'false');
-  if (returnFocus) elements.modeTrigger.focus();
-}
-
-function chooseMode(next: Backend): void {
-  closeModeList(true);
-  if (next === mode) return;
-  showMode(next);
-  discardAudio();
-}
-
-/** The mode list: a custom listbox in the page's style; labels come from MODE_LABELS, the engine's single source for them. */
-function buildModeList(): void {
-  for (const value of MODES) {
+  for (const optionValue of values) {
     const option = document.createElement('li');
-    option.id = `mode-${value}`;
+    option.id = `${name}-${optionValue}`;
     option.setAttribute('role', 'option');
-    option.dataset.value = value;
+    option.dataset.value = optionValue;
     option.append(
-      Object.assign(document.createElement('span'), { className: 'label', textContent: pick(MODE_LABELS[value]) }),
+      Object.assign(document.createElement('span'), { className: 'label', textContent: label(optionValue) }),
       Object.assign(document.createElement('span'), { className: 'check', textContent: '✓' }),
     );
     option.querySelector('.check')?.setAttribute('aria-hidden', 'true');
-    option.addEventListener('click', () => chooseMode(value));
-    option.addEventListener('pointermove', () => setActiveOption(MODES.indexOf(value)));
-    elements.modeList.append(option);
+    option.addEventListener('click', () => choose(optionValue));
+    option.addEventListener('pointermove', () => setActive(values.indexOf(optionValue)));
+    list.append(option);
   }
-  showMode('wasm');
+  show(value);
 
-  elements.modeTrigger.addEventListener('click', (event) => {
-    if (isModeListOpen()) closeModeList(true);
-    else openModeList(event.detail === 0); // detail 0: Enter or Space, not a pointer
+  trigger.addEventListener('click', (event) => {
+    if (isOpen()) close(true);
+    else open(event.detail === 0); // detail 0: Enter or Space, not a pointer
   });
-  elements.modeTrigger.addEventListener('keydown', (event) => {
+  trigger.addEventListener('keydown', (event) => {
     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
     event.preventDefault();
-    openModeList(true);
+    open(true);
   });
-  elements.modeList.addEventListener('keydown', (event) => {
-    const active = modeOptions().findIndex(option => option.classList.contains('active'));
-    const moves: Record<string, number> = { ArrowDown: active + 1, ArrowUp: active - 1, Home: 0, End: MODES.length - 1 };
-    if (event.key in moves) setActiveOption(moves[event.key]);
-    else if (event.key === 'Enter' || event.key === ' ') chooseMode(MODES[active]);
-    else if (event.key === 'Escape') closeModeList(true);
-    else if (event.key === 'Tab') closeModeList(false);
+  list.addEventListener('keydown', (event) => {
+    const active = optionElements().findIndex(option => option.classList.contains('active'));
+    const moves: Record<string, number> = { ArrowDown: active + 1, ArrowUp: active - 1, Home: 0, End: values.length - 1 };
+    if (event.key in moves) setActive(moves[event.key]);
+    else if (event.key === 'Enter' || event.key === ' ') choose(values[active]);
+    else if (event.key === 'Escape') close(true);
+    else if (event.key === 'Tab') close(false);
     else return;
     if (event.key !== 'Tab') event.preventDefault();
   });
   document.addEventListener('pointerdown', (event) => {
-    if (isModeListOpen() && !(event.target as Element).closest('.select')) closeModeList(false);
+    if (isOpen() && !list.parentElement?.contains(event.target as Node)) close(false);
   });
+
+  return {
+    get value() {
+      return value;
+    },
+    show,
+    close,
+    relabel() {
+      show(value);
+      for (const option of optionElements()) {
+        const text = option.querySelector('.label');
+        if (text) text.textContent = label(option.dataset.value as Value);
+      }
+    },
+  };
 }
+
+/** The mode list; labels come from MODE_LABELS, the engine's single source for them. */
+const modeList = createSelectList<Backend>({
+  name: 'mode',
+  trigger: elements.modeTrigger,
+  valueElement: elements.modeValue,
+  list: elements.modeList,
+  values: MODES,
+  initial: 'wasm',
+  label: value => pick(MODE_LABELS[value]),
+  onChoose: () => discardAudio(),
+});
+const selectedMode = () => modeList.value;
+/** Shows a mode as chosen (e.g. after the reader fell back to default mode), without switching the reader. */
+const showMode = (next: Backend) => modeList.show(next);
+
+type Quality = 'medium' | 'high';
+const QUALITIES: readonly Quality[] = ['medium', 'high'];
+
+/** Which quality each voice belongs to, by its runtime: nipponjo's Mixer-TTS is medium, Bayan's MagpieTTS is high. */
+const QUALITY_BY_RUNTIME: Record<string, Quality> = { 'mixer-tts': 'medium', 'magpie-tts': 'high' };
+const qualityOf = (voice: VoiceConfig): Quality => QUALITY_BY_RUNTIME[voice.runtime] ?? 'medium';
+
+const qualityList = createSelectList<Quality>({
+  name: 'quality',
+  trigger: elements.qualityTrigger,
+  valueElement: elements.qualityValue,
+  list: elements.qualityList,
+  values: QUALITIES,
+  initial: 'medium',
+  label: value => t(value === 'medium' ? 'qualityMedium' : 'qualityHigh'),
+  onChoose: (next) => {
+    showVoicesFor(next);
+    discardAudio();
+  },
+});
 
 const readyText = (activeReader: Reader) => `${t('ready')} · ${pick(activeReader.voice.label)} · ${pick(MODE_LABELS[activeReader.backend])}`;
 
@@ -346,20 +420,38 @@ function selectedVoice(): VoiceConfig {
   return voices.find(candidate => candidate.id === id) ?? voices[0];
 }
 
-async function loadVoices(): Promise<void> {
-  const index = await (await fetch(new URL('index.json', voiceBase))).json() as string[];
-  voices = await Promise.all(index.map(file => loadVoiceConfig(new URL(file, voiceBase))));
-  const defaultVoice = voices.find(voice => voice.isDefault) ?? voices[0];
-  for (const voice of voices) {
+/** The voice last chosen in each quality, so switching back and forth keeps it. */
+const lastVoiceByQuality = new Map<Quality, string>();
+
+/** Fills "Choose a voice" with the voices of the chosen quality, keeping the one last chosen there. */
+function showVoicesFor(quality: Quality): void {
+  const shown = voices.filter(voice => qualityOf(voice) === quality);
+  const keep = shown.find(voice => voice.id === lastVoiceByQuality.get(quality)) ?? shown.find(voice => voice.isDefault) ?? shown[0];
+  elements.voices.replaceChildren();
+  for (const voice of shown) {
     const label = document.createElement('label');
     label.innerHTML = `<input type="radio" name="voice" value="${voice.id}"><span class="label"></span>`;
     (label.querySelector('.label') as HTMLElement).textContent = pick(voice.label);
     const radio = label.querySelector('input') as HTMLInputElement;
-    radio.checked = voice === defaultVoice;
-    radio.addEventListener('change', discardAudio);
+    radio.checked = voice === keep;
+    radio.disabled = modelBusy;
+    radio.addEventListener('change', () => {
+      lastVoiceByQuality.set(quality, voice.id);
+      discardAudio();
+    });
     elements.voices.append(label);
   }
-  elements.voices.style.setProperty('--n', String(voices.length));
+  elements.voices.style.setProperty('--n', String(Math.max(shown.length, 1)));
+}
+
+async function loadVoices(): Promise<void> {
+  const index = await (await fetch(new URL('index.json', voiceBase))).json() as string[];
+  voices = await Promise.all(index.map(file => loadVoiceConfig(new URL(file, voiceBase))));
+  // Quality is a choice only when both kinds of voice are listed (a host can list nipponjo's voices alone).
+  const qualities = new Set(voices.map(qualityOf));
+  elements.qualityField.hidden = qualities.size < 2;
+  if (!qualities.has(qualityList.value)) qualityList.show(QUALITIES.find(quality => qualities.has(quality)) ?? 'medium');
+  showVoicesFor(qualityList.value);
   const missing = await missingModelFiles();
   if (missing.length > 0) showMissingFiles(missing);
 }
@@ -722,11 +814,8 @@ function switchLocale(): void {
   elements.stage.textContent = stageText();
   if (playbackState) elements.playback.textContent = t(`state.${playbackState}`);
   updateAudioControls();
-  showMode(mode);
-  for (const option of modeOptions()) {
-    const label = option.querySelector('.label');
-    if (label) label.textContent = pick(MODE_LABELS[option.dataset.value as Backend]);
-  }
+  modeList.relabel();
+  qualityList.relabel();
   for (const label of elements.voices.querySelectorAll('label')) {
     const voice = voices.find(candidate => candidate.id === label.querySelector('input')?.value);
     const text = label.querySelector('.label');
@@ -745,7 +834,6 @@ function switchLocale(): void {
 applyLocale();
 elements.stage.textContent = stageText();
 elements.locale.addEventListener('click', switchLocale);
-buildModeList();
 elements.prepare.addEventListener('click', () => void prepare());
 elements.play.addEventListener('click', () => void play());
 elements.stop.addEventListener('click', () => {

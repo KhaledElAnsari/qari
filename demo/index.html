@@ -75,6 +75,7 @@
     .en { color: var(--muted); font-weight: 400; }
 
     .field { display: grid; gap: .4rem; margin-block-end: 1.1rem; }
+    .field[hidden] { display: none; }
     .field > span { font-size: .85rem; color: var(--muted); }
     .row { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; }
 
@@ -159,6 +160,7 @@
       appearance: none; -webkit-appearance: none; background: var(--gold-soft); overflow: hidden;
       animation: rise 260ms var(--ease-out) both;
     }
+    .download-bar[hidden] { display: none; }
     .download-bar::-webkit-progress-bar { background: var(--gold-soft); border-radius: 999px; }
     .download-bar::-webkit-progress-value { background: var(--gold); border-radius: 999px; transition: width 200ms linear; }
     .download-bar::-moz-progress-bar { background: var(--gold); border-radius: 999px; }
@@ -348,6 +350,16 @@
 
   <section class="card" aria-labelledby="voice-heading">
     <h2 id="voice-heading"><span class="step">٢</span> <span data-i18n="voiceHeading">الصوت</span></h2>
+    <div class="field" id="quality-field">
+      <span id="quality-label" data-i18n="quality">الجودة</span>
+      <div class="select">
+        <button autocomplete="off" type="button" class="select-trigger" id="quality-trigger" data-testid="quality" aria-haspopup="listbox" aria-expanded="false" aria-controls="quality-list" aria-labelledby="quality-label quality-value">
+          <span class="select-value" id="quality-value"></span>
+          <svg class="chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6l4.5 4.5L12.5 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <ul class="select-list" id="quality-list" role="listbox" aria-labelledby="quality-label" tabindex="-1"></ul>
+      </div>
+    </div>
     <div class="field">
       <span id="voice-label" data-i18n="chooseVoice">اختر صوتًا</span>
       <div id="voices" class="switch" role="radiogroup" aria-labelledby="voice-label"></div>
