@@ -89,7 +89,7 @@ function downloadAudio(): void {
   const blob = new Blob([encodeWav(audio.pcm, audio.sampleRate)], { type: 'audio/wav' });
   const url = URL.createObjectURL(blob);
   const stamp = new Date().toISOString().slice(0, 19).replace(/[-:]/g, '').replace('T', '-');
-  const link = Object.assign(document.createElement('a'), { href: url, download: `qari-${reader.voice.id}-${stamp}.wav` });
+  const link = Object.assign(document.createElement('a'), { href: url, download: `qari-${stamp}.wav` });
   document.body.append(link);
   link.click();
   link.remove();
