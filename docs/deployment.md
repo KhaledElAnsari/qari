@@ -12,7 +12,7 @@ What gets deployed is `demo/dist/`, the output of `npm run build`:
 | `models/mixer128_dur.onnx`, `models/vocos22.onnx` (the voice files; not in git) | tens of MB | barely shrinks |
 
 Before you share the link, know what visitors will see:
-- **It's the developer test page, not the reader.** It has a log, model URL boxes and a mode menu. The real `<qari-reader>` with read-along arrives in Q5.
+- **It's the developer test page, not the reader.** It has a log and a mode menu. The real `<qari-reader>` with read-along arrives in Q5.
 - **The first visit is heavy:** the engine plus the voice files. After that the voice comes from the browser's own storage, and only the page reloads. On mobile data, suggest Wi-Fi the first time.
 
 ## What the host decides, and what it doesn't
@@ -133,7 +133,7 @@ Limits:
 ## After each deploy, check
 
 1. The page loads over HTTPS. The top line shows whether accelerated mode is available on that device, and "Cross-origin isolated: true" on hosts with the headers.
-2. **Prepare voice** downloads with real MB progress and ends with "Ready · Male sound · default mode".
+2. **Prepare audio** downloads with real MB progress and ends with "Ready · Male sound · default mode".
 3. **Read** speaks. Switching to Female sound doesn't download again.
 4. Reloading and preparing again says "From cache".
 5. On a device with a real GPU, accelerated mode works. On one without, it shows the plain "doesn't work on this device" message and stays in default mode.

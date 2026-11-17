@@ -45,7 +45,7 @@ test.describe('Q1: load a voice, default or accelerated mode, synthesize in a Wo
 
     await page.goto(`/?voice-base=${TEST_VOICE_BASE}`);
     await expect(page.getByRole('radio', { name: /Male sound/ })).toBeChecked();
-    await page.getByRole('button', { name: /Prepare voice/ }).click();
+    await page.getByRole('button', { name: /Prepare audio/ }).click();
     await expect(page.getByTestId('stage')).toHaveText(/^Ready · Male sound · default mode/);
     expect(modelRequests.sort()).toEqual(['tiny-acoustic.onnx', 'tiny-vocoder.onnx']);
 
@@ -53,13 +53,17 @@ test.describe('Q1: load a voice, default or accelerated mode, synthesize in a Wo
     await expect(page.getByTestId('log')).toContainText('first audio after');
     await expect(page.getByTestId('playback')).toHaveText('ready');
 
+    // A change discards the audio; Prepare audio makes the new one, reusing the same model files (no download).
     await page.getByRole('radio', { name: /Female sound/ }).check();
+    await expect(page.getByTestId('stage')).toHaveText(/prepare the audio again/);
+    await expect(page.getByRole('button', { name: /Read/ })).toBeDisabled();
+    await page.getByRole('button', { name: /Prepare audio/ }).click();
     await expect(page.getByTestId('log')).toContainText('switched to nipponjo-female');
     await expect(page.getByTestId('stage')).toHaveText(/^Ready · Female sound/);
     expect(modelRequests).toHaveLength(2);
 
     await page.reload();
-    await page.getByRole('button', { name: /Prepare voice/ }).click();
+    await page.getByRole('button', { name: /Prepare audio/ }).click();
     await expect(page.getByTestId('stage')).toHaveText(/^Ready · Male sound/);
     expect(modelRequests).toHaveLength(2);
 
@@ -73,15 +77,18 @@ test.describe('Q1: load a voice, default or accelerated mode, synthesize in a Wo
     await serveTestVoices(context);
     await page.goto(`/?voice-base=${TEST_VOICE_BASE}`);
     await expect(page.getByTestId('probe')).toHaveText(/^unavailable/);
-    await page.getByRole('button', { name: /Prepare voice/ }).click();
+    await page.getByRole('button', { name: /Prepare audio/ }).click();
     await expect(page.getByTestId('stage')).toHaveText(/default mode/);
 
-    await page.getByTestId('mode').selectOption('webgpu');
+    await page.getByTestId('mode').click();
+    await page.getByRole('option', { name: /accelerated mode/ }).click();
+    await expect(page.getByRole('button', { name: /Read/ })).toBeDisabled();
+    await page.getByRole('button', { name: /Prepare audio/ }).click();
     const message = page.getByTestId('message');
     await expect(message).toContainText('الوضع المسرَّع لا يعمل على هذا الجهاز');
     await expect(message).toContainText('Accelerated mode doesn\'t work on this device. Use default mode.');
     await expect(message).not.toContainText(/webgpu|wasm|gpu|onnx/i);
-    await expect(page.getByTestId('mode')).toHaveValue('wasm');
+    await expect(page.getByTestId('mode')).toContainText('default mode');
     await expect(page.getByTestId('stage')).toHaveText(/^Ready · Male sound · default mode/);
 
     await page.getByRole('button', { name: /Read/ }).click();
@@ -91,7 +98,7 @@ test.describe('Q1: load a voice, default or accelerated mode, synthesize in a Wo
   test('a missing model file shows "voice unavailable" without technical details', async ({ context, page }) => {
     await serveTestVoices(context, { missingModel: true });
     await page.goto(`/?voice-base=${TEST_VOICE_BASE}`);
-    await page.getByRole('button', { name: /Prepare voice/ }).click();
+    await page.getByRole('button', { name: /Prepare audio/ }).click();
     const message = page.getByTestId('message');
     await expect(message).toContainText('هذا الصوت غير متاح الآن');
     await expect(message).not.toContainText(/http|404|onnx/i);
@@ -101,10 +108,11 @@ test.describe('Q1: load a voice, default or accelerated mode, synthesize in a Wo
   test('text with no Arabic letters says there is nothing to read', async ({ context, page }) => {
     await serveTestVoices(context);
     await page.goto(`/?voice-base=${TEST_VOICE_BASE}`);
-    await page.getByRole('button', { name: /Prepare voice/ }).click();
+    await page.getByRole('button', { name: /Prepare audio/ }).click();
     await expect(page.getByTestId('stage')).toHaveText(/^Ready/);
     await page.locator('#text').fill('MIT 2025');
-    await page.getByRole('button', { name: /Read/ }).click();
+    await expect(page.getByRole('button', { name: /Read/ })).toBeDisabled();
+    await page.getByRole('button', { name: /Prepare audio/ }).click();
     await expect(page.getByTestId('message')).toContainText('لا يوجد نص يمكن قراءته');
   });
 });

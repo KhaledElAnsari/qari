@@ -3,7 +3,7 @@ import type { QariErrorCode } from '../errors/qari-error';
 import type { WordTimings } from '../timings/word-timings';
 import type { VoiceConfig } from '../voice/voice-config';
 
-/** Load stages shown by the "Prepare voice" step (PRD Q1). */
+/** Load stages shown by the "Prepare audio" step (PRD Q1). */
 export type LoadStage = 'downloading' | 'preparing' | 'warming';
 
 /** Download progress across all files of a voice. */

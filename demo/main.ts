@@ -1,22 +1,25 @@
 /**
- * Demo: prepare Male/Female sound in default or accelerated mode, read a sentence. `?voice-base=<url>` loads configs from elsewhere.
+ * Demo: prepare Male/Female sound in default or accelerated mode, read a sentence. `?voice-base=<path>` loads configs from
+ * another folder on this same site (the browser tests use it); other sites are ignored, so a link can't point the demo at
+ * someone else's files.
  * Also checks that the model files are on the server and can clear the saved voice files (OPFS).
  */
 import { clearVoiceCache, createReader, splitDisplayWords, loadVoiceConfig, MODE_LABELS, probeDevice, QariError } from '@khaledelansari/qari-core';
-import type { Backend, LoadProgress, Reader, VoiceConfig, WordTimings } from '@khaledelansari/qari-core';
+import type { Backend, LoadProgress, Reader, Synthesis, VoiceConfig, WordTimings } from '@khaledelansari/qari-core';
 import '@khaledelansari/qari-element';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const MEGABYTE = 1024 * 1024;
-const voiceBase = new URL(new URLSearchParams(location.search).get('voice-base') ?? './', location.href);
+const requestedBase = new URL(new URLSearchParams(location.search).get('voice-base') ?? './', location.href);
+const voiceBase = requestedBase.origin === location.origin ? requestedBase : new URL('./', location.href);
 
 const elements = {
   probe: $('probe'),
   isolated: $('isolated'),
   voices: $('voices'),
-  modelUrl: $<HTMLInputElement>('model-url'),
-  vocoderUrl: $<HTMLInputElement>('vocoder-url'),
-  mode: $<HTMLSelectElement>('backend'),
+  modeTrigger: $<HTMLButtonElement>('mode-trigger'),
+  modeValue: $('mode-value'),
+  modeList: $('mode-list'),
   prepare: $<HTMLButtonElement>('prepare'),
   progress: $<HTMLProgressElement>('progress'),
   stage: $('stage'),
@@ -27,6 +30,7 @@ const elements = {
   playback: $('playback'),
   reading: $('reading'),
   timingEmpty: $('timing-empty'),
+  timingLoading: $('timing-loading'),
   timeline: $('timeline'),
   track: $('track'),
   playhead: $('playhead'),
@@ -37,6 +41,7 @@ const elements = {
   statPace: $('stat-pace'),
   statPauses: $('stat-pauses'),
   timingJson: $('timing-json'),
+  clock: $('clock'),
   log: $('log'),
   filesNotice: $('files-notice'),
   clearCache: $<HTMLButtonElement>('clear-cache'),
@@ -48,17 +53,138 @@ let reader: Reader | null = null;
 /** Timings of the last reading, and its ribbon segments by display word. */
 let timings: WordTimings | null = null;
 let segments = new Map<number, HTMLElement>();
+/** Set when the listener presses Stop, so the clock isn't moved to the end. */
+let stoppedByListener = false;
+/** The prepared audio for the current text, voice and mode; Read plays it. Null until Prepare audio, or after a change. */
+let audio: Synthesis | null = null;
+/** True while the model is loading or reloading (Prepare audio, a voice or mode switch, clearing saved files). */
+let modelBusy = false;
+
+/** Read is available only when there is prepared audio and the model isn't busy. */
+function updatePlayEnabled(): void {
+  elements.play.disabled = modelBusy || audio === null;
+}
+
+/** While the model works, every control waits: text, voice, mode, Prepare audio, Read and the cache button. */
+function setModelBusy(busy: boolean): void {
+  modelBusy = busy;
+  if (busy) closeModeList(false);
+  elements.text.disabled = busy;
+  elements.modeTrigger.disabled = busy;
+  elements.prepare.disabled = busy;
+  elements.clearCache.disabled = busy;
+  for (const radio of elements.voices.querySelectorAll('input')) radio.disabled = busy;
+  elements.voices.setAttribute('aria-disabled', String(busy));
+  document.body.toggleAttribute('data-model-busy', busy);
+  updatePlayEnabled();
+}
 
 const log = (line: string) => {
   elements.log.textContent += `${new Date().toLocaleTimeString()}  ${line}\n`;
 };
 
 const megabytes = (bytes: number) => (bytes / MEGABYTE).toFixed(1);
-const selectedMode = () => elements.mode.value as Backend;
+const MODES: readonly Backend[] = ['wasm', 'webgpu'];
+let mode: Backend = 'wasm';
+const selectedMode = () => mode;
+
+/** Shows a mode as chosen in the list and on its trigger (without switching the reader). */
+function showMode(next: Backend): void {
+  mode = next;
+  elements.modeValue.replaceChildren(
+    Object.assign(document.createElement('span'), { textContent: MODE_LABELS[next].ar }),
+    ' ',
+    Object.assign(document.createElement('small'), { textContent: MODE_LABELS[next].en, lang: 'en' }),
+  );
+  for (const option of modeOptions()) option.setAttribute('aria-selected', String(option.dataset.value === next));
+}
+
+const modeOptions = () => [...elements.modeList.querySelectorAll<HTMLElement>('[role="option"]')];
+const isModeListOpen = () => elements.modeList.hasAttribute('data-open');
+
+function setActiveOption(index: number): void {
+  const options = modeOptions();
+  const active = options[(index + options.length) % options.length];
+  for (const option of options) option.classList.toggle('active', option === active);
+  elements.modeList.setAttribute('aria-activedescendant', active.id);
+}
+
+/** Opens the list on the chosen mode; from the keyboard it appears at once (no animation on keyboard actions). */
+function openModeList(fromKeyboard: boolean): void {
+  elements.modeList.toggleAttribute('data-instant', fromKeyboard);
+  elements.modeList.setAttribute('data-open', '');
+  elements.modeTrigger.setAttribute('aria-expanded', 'true');
+  setActiveOption(MODES.indexOf(mode));
+  elements.modeList.focus();
+}
+
+function closeModeList(returnFocus: boolean): void {
+  if (!isModeListOpen()) return;
+  elements.modeList.removeAttribute('data-open');
+  elements.modeTrigger.setAttribute('aria-expanded', 'false');
+  if (returnFocus) elements.modeTrigger.focus();
+}
+
+function chooseMode(next: Backend): void {
+  closeModeList(true);
+  if (next === mode) return;
+  showMode(next);
+  discardAudio();
+}
+
+/** The mode list: a custom listbox in the page's style; labels come from MODE_LABELS, the engine's single source for them. */
+function buildModeList(): void {
+  for (const value of MODES) {
+    const option = document.createElement('li');
+    option.id = `mode-${value}`;
+    option.setAttribute('role', 'option');
+    option.dataset.value = value;
+    option.append(
+      Object.assign(document.createElement('span'), { textContent: MODE_LABELS[value].ar }),
+      ' ',
+      Object.assign(document.createElement('small'), { textContent: MODE_LABELS[value].en, lang: 'en' }),
+      Object.assign(document.createElement('span'), { className: 'check', textContent: '✓' }),
+    );
+    option.querySelector('.check')?.setAttribute('aria-hidden', 'true');
+    option.addEventListener('click', () => chooseMode(value));
+    option.addEventListener('pointermove', () => setActiveOption(MODES.indexOf(value)));
+    elements.modeList.append(option);
+  }
+  showMode('wasm');
+
+  elements.modeTrigger.addEventListener('click', (event) => {
+    if (isModeListOpen()) closeModeList(true);
+    else openModeList(event.detail === 0); // detail 0: Enter or Space, not a pointer
+  });
+  elements.modeTrigger.addEventListener('keydown', (event) => {
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+    event.preventDefault();
+    openModeList(true);
+  });
+  elements.modeList.addEventListener('keydown', (event) => {
+    const active = modeOptions().findIndex(option => option.classList.contains('active'));
+    const moves: Record<string, number> = { ArrowDown: active + 1, ArrowUp: active - 1, Home: 0, End: MODES.length - 1 };
+    if (event.key in moves) setActiveOption(moves[event.key]);
+    else if (event.key === 'Enter' || event.key === ' ') chooseMode(MODES[active]);
+    else if (event.key === 'Escape') closeModeList(true);
+    else if (event.key === 'Tab') closeModeList(false);
+    else return;
+    if (event.key !== 'Tab') event.preventDefault();
+  });
+  document.addEventListener('pointerdown', (event) => {
+    if (isModeListOpen() && !(event.target as Element).closest('.select')) closeModeList(false);
+  });
+}
+
 const readyText = (activeReader: Reader) => `Ready · ${activeReader.voice.label.en} · ${MODE_LABELS[activeReader.backend].en}`;
+
+/** The error on screen, so one reported both as an event and as a rejection is shown once. */
+let lastShownError: unknown = null;
 
 /** Listeners see only the friendly text; the technical detail goes to the developer log. */
 function showError(error: unknown): void {
+  if (error === lastShownError && !elements.message.hidden) return;
+  lastShownError = error;
   const qariError = error instanceof QariError ? error : new QariError('unexpected', String(error));
   elements.message.replaceChildren(
     Object.assign(document.createElement('span'), { textContent: qariError.text.ar, lang: 'ar' }),
@@ -74,10 +200,9 @@ const clearError = () => {
   elements.filesNotice.hidden = true;
 };
 
-/** Model URLs of every listed voice, plus the ones typed in the developer boxes, once each. */
+/** Model URLs of every listed voice, once each. */
 function modelUrls(): string[] {
   const urls = voices.flatMap(voice => [voice.model.url, voice.vocoder?.url]);
-  urls.push(elements.modelUrl.value, elements.vocoderUrl.value);
   return [...new Set(urls.filter((url): url is string => Boolean(url)).map(url => new URL(url, voiceBase).href))];
 }
 
@@ -105,7 +230,7 @@ function showMissingFiles(missing: string[]): void {
   for (const url of missing) log(`model file missing on the server: ${url}`);
   const list = Object.assign(document.createElement('p'), { textContent: `Missing voice files: ${names.join(', ')}.` });
   const fix = document.createElement('p');
-  fix.innerHTML = 'Put them in <code>voices/models/</code> (see <code>voices/models/README.md</code>), or run <code>npm run fetch-models</code>, then press Prepare voice again.';
+  fix.innerHTML = 'Put them in <code>voices/models/</code> (see <code>voices/models/README.md</code>), or run <code>npm run fetch-models</code>, then press Prepare audio again.';
   elements.filesNotice.replaceChildren(list, fix);
   elements.filesNotice.hidden = false;
 }
@@ -128,14 +253,15 @@ async function explainUnavailableVoice(): Promise<void> {
 
 /** Deletes the saved voice files; the reader is closed first so its Worker lets go of them. Resolves true when cleared. */
 async function clearCache(): Promise<boolean> {
-  elements.clearCache.disabled = true;
-  elements.play.disabled = true;
+  setModelBusy(true);
   try {
     await reader?.dispose();
     reader = null;
     elements.progress.value = 0;
     elements.stage.textContent = 'Not loaded';
     setPhase('idle');
+    audio = null;
+    showTimingEmpty();
     const cleared = await clearVoiceCache();
     elements.cacheStatus.textContent = cleared ? 'Deleted. The next prepare downloads the voice again.' : 'This browser can\'t save voice files here, so there is nothing to delete.';
     log(cleared ? 'saved voice files deleted' : 'no voice cache (OPFS unavailable)');
@@ -146,7 +272,7 @@ async function clearCache(): Promise<boolean> {
     return false;
   }
   finally {
-    elements.clearCache.disabled = false;
+    setModelBusy(false);
   }
 }
 
@@ -155,6 +281,7 @@ type Phase = 'idle' | 'downloading' | 'preparing' | 'ready';
 /** Drives the design: the Prepare button fills as its own download bar, and the status dot turns green when ready. */
 function setPhase(phase: Phase, fraction = 0): void {
   elements.prepare.dataset.phase = phase;
+  elements.prepare.setAttribute('aria-busy', String(phase === 'downloading' || phase === 'preparing'));
   elements.prepare.style.setProperty('--p', String(phase === 'idle' ? 0 : phase === 'downloading' ? Math.min(Math.max(fraction, 0), 1) : 1));
   elements.stage.toggleAttribute('data-ready', phase === 'ready');
 }
@@ -175,15 +302,10 @@ function showProgress(progress: LoadProgress): void {
   elements.stage.textContent = progress.stage === 'preparing' ? 'Preparing…' : 'Warming up…';
 }
 
-/** The selected voice, with the URL boxes applied (so other hosts' files can be tried without editing JSON). */
+/** The selected voice, exactly as its config describes it (model files come only from the configs). */
 function selectedVoice(): VoiceConfig {
   const id = (document.querySelector<HTMLInputElement>('input[name="voice"]:checked'))?.value;
-  const voice = voices.find(candidate => candidate.id === id) ?? voices[0];
-  return {
-    ...voice,
-    model: { ...voice.model, url: elements.modelUrl.value || voice.model.url },
-    vocoder: voice.vocoder && { ...voice.vocoder, url: elements.vocoderUrl.value || voice.vocoder.url },
-  };
+  return voices.find(candidate => candidate.id === id) ?? voices[0];
 }
 
 async function loadVoices(): Promise<void> {
@@ -195,86 +317,99 @@ async function loadVoices(): Promise<void> {
     label.innerHTML = `<input type="radio" name="voice" value="${voice.id}"><span>${voice.label.ar}</span> <small lang="en">${voice.label.en}</small>`;
     const radio = label.querySelector('input') as HTMLInputElement;
     radio.checked = voice === defaultVoice;
-    radio.addEventListener('change', () => void switchVoice());
+    radio.addEventListener('change', discardAudio);
     elements.voices.append(label);
   }
   elements.voices.style.setProperty('--n', String(voices.length));
-  elements.modelUrl.value = defaultVoice.model.url;
-  elements.vocoderUrl.value = defaultVoice.vocoder?.url ?? '';
   const missing = await missingModelFiles();
   if (missing.length > 0) showMissingFiles(missing);
 }
 
-async function prepare(): Promise<void> {
-  elements.prepare.disabled = true;
-  elements.play.disabled = true;
-  clearError();
-  setPhase('downloading', 0);
+/** Listens to a new reader: progress, problems, playback state, and the timings of what plays. */
+function attachReaderListeners(activeReader: Reader): void {
+  activeReader.on('progress', showProgress);
+  activeReader.on('warning', message => log(`warning: ${message}`));
+  activeReader.on('error', showError);
+  activeReader.on('state', (state) => {
+    elements.playback.textContent = state;
+    document.body.dataset.playback = state;
+  });
+  activeReader.on('timings', (next) => {
+    renderTimeline(next);
+    followPlayhead();
+  });
+}
+
+const sameVoice = (a: VoiceConfig, b: VoiceConfig) => a.id === b.id && a.model.url === b.model.url && a.vocoder?.url === b.vocoder?.url;
+
+/**
+ * Gets the reader to the chosen voice and mode: loads it the first time, otherwise switches only what changed
+ * (Male ↔ Female sound reuse the same model files, so no download).
+ */
+async function loadSelectedVoice(): Promise<Reader> {
+  const voice = selectedVoice();
+  const backend = selectedMode();
   const startedAt = performance.now();
+  if (!reader) {
+    reader = await createReader({ voice, backend });
+    attachReaderListeners(reader);
+    log(`voice ${reader.voice.id} ready in ${Math.round(performance.now() - startedAt)} ms on ${reader.backend}`);
+    return reader;
+  }
+  if (!sameVoice(reader.voice, voice)) {
+    await reader.setVoice(voice);
+    log(`switched to ${reader.voice.id} in ${Math.round(performance.now() - startedAt)} ms`);
+  }
+  if (reader.backend !== backend) {
+    try {
+      await reader.setBackend(backend);
+      log(`now in ${reader.backend}`);
+    }
+    catch {
+      // Already shown through the error event (plain words); the reader went back to the mode it had, so carry on in it.
+      showMode(reader.backend);
+    }
+  }
+  return reader;
+}
+
+/**
+ * Prepare audio: loads or switches the voice as chosen, then makes the audio for the text and draws its timings.
+ * Read plays exactly this audio; changing the text, voice or mode discards it until Prepare audio runs again.
+ */
+async function prepare(): Promise<void> {
+  setModelBusy(true);
+  clearError();
+  discardAudio();
+  elements.stage.textContent = 'Preparing…';
+  setPhase('downloading', 0);
   try {
-    await reader?.dispose();
-    reader = null;
-    reader = await createReader({ voice: selectedVoice(), backend: selectedMode() });
-    reader.on('progress', showProgress);
-    reader.on('warning', message => log(`warning: ${message}`));
-    reader.on('error', showError);
-    reader.on('state', (state) => {
-      elements.playback.textContent = state;
-      document.body.dataset.playback = state;
-    });
-    reader.on('timings', (next) => {
-      renderTimeline(next);
-      followPlayhead();
-    });
+    const activeReader = await loadSelectedVoice();
+    setPhase('preparing');
+    await makeAudio(activeReader);
     elements.progress.max = 1;
     elements.progress.value = 1;
-    elements.stage.textContent = readyText(reader);
+    elements.stage.textContent = readyText(activeReader);
     setPhase('ready');
-    log(`voice ${reader.voice.id} ready in ${Math.round(performance.now() - startedAt)} ms on ${reader.backend}`);
-    elements.play.disabled = false;
   }
   catch (error) {
-    elements.stage.textContent = 'Not loaded';
+    // A failed switch leaves the reader as it was (e.g. accelerated mode falls back to default): show that.
+    if (reader) showMode(reader.backend);
+    elements.stage.textContent = reader ? 'No audio yet' : 'Not loaded';
     setPhase('idle');
     showError(error);
   }
   finally {
-    elements.prepare.disabled = false;
+    setModelBusy(false);
   }
-}
-
-/** Male ↔ Female sound share model files, so a prepared reader switches without downloading. */
-async function switchVoice(): Promise<void> {
-  if (!reader) return;
-  clearError();
-  const startedAt = performance.now();
-  try {
-    await reader.setVoice(selectedVoice());
-    log(`switched to ${reader.voice.id} in ${Math.round(performance.now() - startedAt)} ms`);
-  }
-  catch {
-    // Shown through the error event; the reader kept the previous voice.
-  }
-  elements.stage.textContent = readyText(reader);
-}
-
-/** Changing mode on a prepared reader reloads it in that mode; if accelerated mode fails, the reader stays in the old mode. */
-async function switchMode(): Promise<void> {
-  if (!reader) return;
-  clearError();
-  elements.play.disabled = true;
-  try {
-    await reader.setBackend(selectedMode());
-    log(`now in ${reader.backend}`);
-  }
-  catch {
-    elements.mode.value = reader.backend;
-  }
-  elements.stage.textContent = readyText(reader);
-  elements.play.disabled = false;
 }
 
 const secondsText = (value: number) => `${value.toFixed(2)} s`;
+
+/** Player clock: time heard / total length. */
+const setClock = (position: number, total: number) => {
+  elements.clock.textContent = `${position.toFixed(1)} / ${total.toFixed(1)} s`;
+};
 
 function setStat(element: HTMLElement, value: string, unit: string): void {
   element.replaceChildren(value, Object.assign(document.createElement('small'), { textContent: unit }));
@@ -300,8 +435,69 @@ function fitLabels(): void {
   }
 }
 
+/** Back to the empty timing card (no audio for this text yet). */
+function showTimingEmpty(): void {
+  timings = null;
+  segments = new Map();
+  elements.timeline.hidden = true;
+  elements.timingEmpty.hidden = false;
+  elements.clock.textContent = '– / –';
+}
+
+/** Makes the audio for the current text, without playing it, and draws its timings. */
+async function makeAudio(activeReader: Reader): Promise<void> {
+  const text = elements.text.value;
+  if (text.trim() === '') {
+    showTimingEmpty();
+    return;
+  }
+  // Only show the loader if the work takes a moment, so quick runs don't flash.
+  const showLoader = window.setTimeout(() => setTimingBusy(true), 150);
+  try {
+    audio = await activeReader.synthesize(text);
+    if (audio.timings) renderTimeline(audio.timings);
+    else showTimingEmpty();
+  }
+  catch (error) {
+    showTimingEmpty();
+    throw error;
+  }
+  finally {
+    clearTimeout(showLoader);
+    setTimingBusy(false);
+  }
+}
+
+/** The text, voice or mode changed: the prepared audio no longer matches, so it goes until Prepare audio runs again. */
+function discardAudio(): void {
+  const hadAudio = audio !== null;
+  audio = null;
+  showTimingEmpty();
+  if (reader && hadAudio) {
+    setPhase('idle');
+    elements.stage.textContent = 'Changed · prepare the audio again';
+  }
+  updatePlayEnabled();
+}
+
+/** Loader while the audio for the text is made: a placeholder ribbon at first, or a dimmed ribbon once one exists. */
+function setTimingBusy(busy: boolean): void {
+  const hasRibbon = !elements.timeline.hidden;
+  elements.timeline.toggleAttribute('data-busy', busy);
+  elements.timingLoading.classList.toggle('compact', hasRibbon);
+  elements.timingLoading.hidden = !busy;
+  if (!hasRibbon) elements.timingEmpty.hidden = busy;
+}
+
 /** Draws the ribbon: one segment per heard word, placed and sized by its time; the gaps are pauses. */
 function renderTimeline(next: WordTimings): void {
+  if (next === timings) {
+    // The same audio again (Read after Prepare audio, or a replay): just rewind the ribbon.
+    for (const segment of segments.values()) segment.classList.remove('read', 'current');
+    elements.playhead.style.transform = 'translateX(0)';
+    setClock(0, next.duration);
+    return;
+  }
   timings = next;
   const total = Math.max(next.duration, 0.001);
   const percent = (value: number) => `${(value / total) * 100}%`;
@@ -335,7 +531,8 @@ function renderTimeline(next: WordTimings): void {
   setStat(elements.statPace, String(Math.round(next.stats.wordsPerMinute)), 'wpm');
   setStat(elements.statPauses, String(Math.round(next.stats.pausePercent)), '%');
   elements.timingJson.textContent = JSON.stringify({ duration: next.duration, stats: next.stats, words: next.words, displayWords: next.displayWords }, null, 1);
-  elements.readout.textContent = 'مرّر المؤشر على كلمة لترى توقيتها · Hover or focus a word to see its timing.';
+  elements.readout.replaceChildren('مرّر المؤشر على كلمة لترى توقيتها · ', Object.assign(document.createElement('span'), { textContent: 'Hover or focus a word to see its timing.', lang: 'en', dir: 'ltr' }));
+  setClock(0, total);
   elements.timingEmpty.hidden = true;
   elements.timeline.hidden = false;
   fitLabels();
@@ -350,6 +547,7 @@ function followPlayhead(): void {
     if (position !== null) {
       const fraction = Math.min(position / Math.max(timings.duration, 0.001), 1);
       elements.playhead.style.transform = `translateX(${-fraction * elements.track.clientWidth}px)`;
+      setClock(Math.min(position, timings.duration), timings.duration);
     }
     requestAnimationFrame(step);
   };
@@ -382,13 +580,15 @@ function hideReadingView(): void {
 }
 
 async function play(): Promise<void> {
-  if (!reader) return;
+  const prepared = audio;
+  if (!reader || !prepared) return;
   clearError();
   elements.stop.disabled = false;
   const startedAt = performance.now();
   const stopListening = reader.on('state', (state) => {
     if (state === 'playing') log(`first audio after ${Math.round(performance.now() - startedAt)} ms`);
   });
+  stoppedByListener = false;
   const spans = showReadingView(elements.text.value);
   let wordCount = 0;
   const stopHighlighting = reader.on('word', (word) => {
@@ -404,7 +604,7 @@ async function play(): Promise<void> {
     describeWord(word);
   });
   try {
-    await reader.speak(elements.text.value);
+    await reader.play(prepared);
   }
   catch {
     // Shown through the error event; pressing play again is the retry.
@@ -417,24 +617,41 @@ async function play(): Promise<void> {
     for (const segment of segments.values()) {
       if (segment.classList.contains('current')) segment.classList.replace('current', 'read');
     }
+    if (timings && !stoppedByListener) setClock(timings.duration, timings.duration);
     if (wordCount > 0) log(`highlighted ${wordCount} words`);
     elements.stop.disabled = true;
   }
 }
 
-for (const option of elements.mode.options) {
-  const label = MODE_LABELS[option.value as Backend];
-  option.textContent = `${label.ar} · ${label.en}`;
-}
+buildModeList();
 elements.prepare.addEventListener('click', () => void prepare());
 elements.play.addEventListener('click', () => void play());
-elements.stop.addEventListener('click', () => reader?.stop());
-elements.mode.addEventListener('change', () => void switchMode());
+elements.stop.addEventListener('click', () => {
+  stoppedByListener = true;
+  reader?.stop();
+});
 elements.clearCache.addEventListener('click', () => void clearCache());
+elements.text.addEventListener('input', discardAudio);
+// Firefox restores buttons' disabled state on reload; start from the real state (no voice yet).
+elements.stop.disabled = true;
+updatePlayEnabled();
 window.addEventListener('resize', fitLabels);
 elements.isolated.textContent = String(globalThis.crossOriginIsolated);
 
 void probeDevice().then((probe) => {
   elements.probe.textContent = `${probe.backend === 'webgpu' ? 'available' : 'unavailable'} (${probe.reason}${probe.gflops ? `, ${probe.gflops.toFixed(1)} GFLOPS` : ''})`;
+  if (probe.backend !== 'webgpu') {
+    // Still selectable: choosing it explains, in plain words, why it can't run here.
+    // Each language in its own piece, so a narrow screen wraps between them instead of interleaving the two.
+    const note = Object.assign(document.createElement('small'), { className: 'note' });
+    note.append(
+      Object.assign(document.createElement('span'), { textContent: 'غير متاح على هذا الجهاز' }),
+      ' · ',
+      Object.assign(document.createElement('span'), { textContent: 'not available on this device', lang: 'en', dir: 'ltr' }),
+    );
+    const accelerated = document.getElementById('mode-webgpu');
+    accelerated?.insertBefore(note, accelerated.querySelector('.check'));
+    note.before(' ');
+  }
 });
 void loadVoices().catch(error => log(`error loading voice configs: ${error instanceof Error ? error.message : String(error)}`));
