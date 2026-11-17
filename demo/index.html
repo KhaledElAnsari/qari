@@ -232,6 +232,8 @@
     .download { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1rem; }
     .file-info { font-size: .85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
     .keep span { display: block; }
+    .keep ol { margin: 0; padding-inline-start: 1.2rem; }
+    .keep li + li { margin-block-start: .35rem; }
     .keep { margin: 1rem 0 0; padding-inline-start: .7rem; border-inline-start: .2rem solid var(--gold); font-size: .85rem; color: var(--muted); }
     /* Long readings scroll sideways at a fixed scale instead of squeezing every word. */
     .ribbon-scroll {
@@ -337,6 +339,7 @@
     <p class="status" id="stage" data-testid="stage" aria-live="polite">Not loaded</p>
     <p class="message" id="message" data-testid="message" role="alert" hidden></p>
     <div class="notice" id="files-notice" data-testid="files-notice" hidden></div>
+    <p class="keep"><span>يتم توليد المقطع الصوتي على جهازك مباشرةً، وقد يستغرق ذلك بعض الوقت، خاصةً في المرة الأولى.</span><span lang="en" dir="ltr">The audio is generated right on your device, so it may take some time, especially the first time.</span></p>
   </section>
 
   <section class="card" aria-labelledby="player-heading">
@@ -369,6 +372,13 @@
         <div><dt>السرعة · Pace</dt><dd id="stat-pace">–</dd></div>
         <div><dt>الوقفات · Pauses</dt><dd id="stat-pauses">–</dd></div>
       </dl>
+    </div>
+    <div class="keep">
+      <ol>
+        <li><span>مرّر الشريط جانبًا لترى كل الكلمات.</span><span lang="en" dir="ltr">Scroll the ribbon sideways to see all the words.</span></li>
+        <li><span>مرّر المؤشر على كلمة لترى توقيتها بالضبط.</span><span lang="en" dir="ltr">Hover over a word to see its exact timing.</span></li>
+        <li><span>انقر على كلمة ليبدأ الصوت منها.</span><span lang="en" dir="ltr">Click a word to play the audio from there.</span></li>
+      </ol>
     </div>
   </section>
 

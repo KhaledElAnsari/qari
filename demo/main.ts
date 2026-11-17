@@ -571,7 +571,8 @@ function renderTimeline(next: WordTimings): void {
   setStat(elements.statPace, String(Math.round(next.stats.wordsPerMinute)), 'wpm');
   setStat(elements.statPauses, String(Math.round(next.stats.pausePercent)), '%');
   elements.timingJson.textContent = JSON.stringify({ duration: next.duration, stats: next.stats, words: next.words, displayWords: next.displayWords }, null, 1);
-  elements.readout.replaceChildren('مرّر المؤشر على كلمة لترى توقيتها، وانقرها لتبدأ منها · ', Object.assign(document.createElement('span'), { textContent: 'Hover a word to see its timing; click it to play from there.', lang: 'en', dir: 'ltr' }));
+  // Empty until a word is hovered, focused or read; the tips below the ribbon explain how.
+  elements.readout.replaceChildren();
   setClock(0, total);
   fitLabels();
   log(`timings: ${heard.length} words over ${total.toFixed(2)} s`);
