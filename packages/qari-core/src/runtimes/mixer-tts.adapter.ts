@@ -5,10 +5,12 @@ import { arabicToTokens, tokensToIds } from '../frontends/arabic-phonetiser/toke
 import type { Backend } from '../backend/backend-probe';
 import { QariError } from '../errors/qari-error';
 import { isSpokenToken, symbolId } from '../frontends/arabic-phonetiser/symbols';
+import { normalizeForSpeech } from '../normalization/normalize';
+import type { SpokenWord } from '../normalization/normalize';
 import { computeWordTimings } from '../timings/word-timings';
 import type { WordTimings } from '../timings/word-timings';
 import type { VoiceConfig } from '../voice/voice-config';
-import type { AdapterContext, RuntimeAdapter, SynthesisResult, VoiceModels } from './runtime-adapter';
+import type { AdapterContext, RuntimeAdapter, SynthesisOptions, SynthesisResult, VoiceModels } from './runtime-adapter';
 import { createSession } from './ort-session';
 
 const MEL_OUTPUT = 'mel_spec';
@@ -42,10 +44,12 @@ export class MixerTtsAdapter implements RuntimeAdapter {
     this.voice = voice;
   }
 
-  async synthesize(sentence: string, pace: number): Promise<SynthesisResult> {
+  async synthesize(sentence: string, pace: number, options: SynthesisOptions = {}): Promise<SynthesisResult> {
     if (!this.acoustic || !this.vocoder) throw new Error('Voice is not loaded yet.');
-    const tokens = arabicToTokens(prepareArabicText(sentence));
-    // Digits and Latin letters make no sound until normalization (Q3); text made only of them has nothing to say.
+    // Normalization first (numbers → words), keeping which displayed word each spoken word comes from.
+    const spokenWords = normalizeForSpeech(sentence, { enabled: options.normalize ?? true });
+    const tokens = arabicToTokens(prepareArabicText(spokenWords.map(word => word.text).join(' ')));
+    // Latin letters make no sound; text made only of them has nothing to say.
     if (!tokens.some(isSpokenToken)) throw new QariError('nothing-to-read', 'The text has no Arabic letters the voice can say.');
     const { ids, unknownTokens } = tokensToIds(tokens);
     if (unknownTokens.length > 0) this.context.onWarning(`Skipped tokens the voice doesn't know: ${unknownTokens.join(' ')}.`);
@@ -69,7 +73,7 @@ export class MixerTtsAdapter implements RuntimeAdapter {
     // Copy out of the tensor so the buffer can be transferred to the main thread.
     const pcm = peakNormalize(Float32Array.from(wave.data as Float32Array));
     for (const tensor of [...Object.values(acousticOutputs), ...Object.values(vocoderOutputs)]) tensor.dispose();
-    return { pcm, sampleRate: this.voice.sampleRate, timings: this.wordTimings(sentence, tokens, durations, pcm.length) };
+    return { pcm, sampleRate: this.voice.sampleRate, timings: this.wordTimings(sentence, spokenWords, tokens, durations, pcm.length) };
   }
 
   async dispose(): Promise<void> {
@@ -79,12 +83,13 @@ export class MixerTtsAdapter implements RuntimeAdapter {
   }
 
   /** Word timings from the frame counts; a mismatch is reported as a warning and the audio plays without them. */
-  private wordTimings(text: string, tokens: string[], durations: number[] | undefined, samples: number): WordTimings | undefined {
+  private wordTimings(text: string, spokenWords: SpokenWord[], tokens: string[], durations: number[] | undefined, samples: number): WordTimings | undefined {
     if (!durations) return undefined;
     const totalFrames = durations.reduce((sum, frames) => sum + frames, 0);
     if (totalFrames === 0) return undefined;
     const timings = computeWordTimings({
       text,
+      spokenWords,
       // Unknown tokens never reached the model, so they have no duration.
       tokens: tokens.filter(token => symbolId(token) !== undefined),
       durations,

@@ -1,5 +1,6 @@
 import { prepareArabicText } from '../frontends/arabic-phonetiser/prepare-text';
 import { isSpokenToken, SEPARATOR_TOKEN } from '../frontends/arabic-phonetiser/symbols';
+import type { SpokenWord } from '../normalization/normalize';
 import type { DisplayWordTiming, SpokenWordTiming } from './timing-file';
 
 /** A displayed word: whitespace-separated, as the listener sees it, with its place in the text. */
@@ -13,7 +14,7 @@ export interface DisplayWord {
 
 /** A summary of one reading, worked out from its word timings (not part of the timing file). */
 export interface WordTimingStats {
-  /** Words that are heard; words the voice can't read are not counted. */
+  /** Displayed words that are heard ("1950" counts once, though it is said as three); words the voice can't read are not counted. */
   words: number;
   /** Heard words per minute over the whole audio, pauses included (one decimal). */
   wordsPerMinute: number;
@@ -35,6 +36,11 @@ export interface WordTimings {
 export interface WordTimingsInput {
   /** The text exactly as passed to speak or synthesize. */
   text: string;
+  /**
+   * What the voice said, word by word, each with the displayed word it comes from (normalization's word map). Defaults
+   * to the displayed words as written.
+   */
+  spokenWords?: readonly SpokenWord[];
   /** Model tokens that reached the model, in order (unknown tokens already removed), one per duration. */
   tokens: readonly string[];
   /** Frames per token, from the model's durations output. */
@@ -57,19 +63,19 @@ export function splitDisplayWords(text: string): DisplayWord[] {
 }
 
 /**
- * Which display word each token group belongs to. The phonetiser ends every word with a separator token; a word made
+ * The token groups the spoken words make, in order. The phonetiser ends every word with a separator token; a word made
  * only of punctuation joins the word before it (as in the phonetiser), and a word with nothing the voice can read
  * (Latin letters, symbols) produces no group at all.
  */
-function groupOwners(displayWords: DisplayWord[]): number[] {
-  const owners: number[] = [];
-  for (const word of displayWords) {
+function spokenGroups(spokenWords: readonly SpokenWord[]): SpokenWord[] {
+  const groups: SpokenWord[] = [];
+  for (const word of spokenWords) {
     const prepared = prepareArabicText(word.text);
     if (prepared === '') continue;
-    if (PUNCTUATION_ONLY.test(prepared) && owners.length > 0) continue;
-    owners.push(word.displayIndex);
+    if (PUNCTUATION_ONLY.test(prepared) && groups.length > 0) continue;
+    groups.push(word);
   }
-  return owners;
+  return groups;
 }
 
 /**
@@ -82,7 +88,7 @@ export function computeWordTimings(input: WordTimingsInput): WordTimings | { pro
   if (tokens.length !== durations.length) return { problem: `${tokens.length} tokens but ${durations.length} durations.` };
 
   const displayWords = splitDisplayWords(text);
-  const owners = groupOwners(displayWords);
+  const owners = spokenGroups(input.spokenWords ?? displayWords.map(word => ({ text: word.text, displayIndex: word.displayIndex })));
 
   // Walk the tokens once, closing a group at each separator.
   const groups: { start: number; end: number; spoken: boolean }[] = [];
@@ -109,14 +115,20 @@ export function computeWordTimings(input: WordTimingsInput): WordTimings | { pro
   });
   if (groups.length !== owners.length) return { problem: `${groups.length} word groups in the tokens but ${owners.length} readable words in the text.` };
 
-  const words: SpokenWordTiming[] = groups.map((group, index) => ({
-    index,
-    displayIndex: owners[index],
-    text: displayWords[owners[index]].text,
-    start: seconds(group.start, secondsPerFrame),
-    end: seconds(group.end, secondsPerFrame),
-    spoken: group.spoken,
-  }));
+  const words: SpokenWordTiming[] = groups.map((group, index) => {
+    const { displayIndex, text: said } = owners[index];
+    const shown = displayWords[displayIndex].text;
+    return {
+      index,
+      displayIndex,
+      text: shown,
+      // The spoken form, when normalization changed it (e.g. "1950" → أَلْفٍ, وَتِسْعِمِئَةٍ, وَخَمْسِينَ).
+      ...(said === shown ? {} : { said }),
+      start: seconds(group.start, secondsPerFrame),
+      end: seconds(group.end, secondsPerFrame),
+      spoken: group.spoken,
+    };
+  });
 
   let previousEnd = 0;
   const timedDisplayWords: DisplayWordTiming[] = displayWords.map((word) => {
@@ -133,11 +145,13 @@ export function computeWordTimings(input: WordTimingsInput): WordTimings | { pro
 
   const heardGroups = groups.filter(group => group.spoken);
   const heardFrames = heardGroups.reduce((sum, group) => sum + group.end - group.start, 0);
+  // Counted as the listener sees them: "1950" is one word, though it's said as three.
+  const heardWords = timedDisplayWords.filter(word => word.end > word.start).length;
   const minutes = (frame * secondsPerFrame) / 60;
   const oneDecimal = (value: number) => Math.round(value * 10) / 10;
   const stats: WordTimingStats = {
-    words: heardGroups.length,
-    wordsPerMinute: minutes > 0 ? oneDecimal(heardGroups.length / minutes) : 0,
+    words: heardWords,
+    wordsPerMinute: minutes > 0 ? oneDecimal(heardWords / minutes) : 0,
     pausePercent: frame > 0 ? oneDecimal((1 - heardFrames / frame) * 100) : 0,
   };
 

@@ -45,6 +45,19 @@ export interface ReaderOptions {
   wasmPaths?: string;
   /** A Worker running qari's synth worker; by default qari starts its own. */
   worker?: Worker;
+  /**
+   * Default for reading numbers as words (normalization): on unless `{ enabled: false }`. Each speak() or synthesize()
+   * call can override it with `normalize`, e.g. from a listener's "Read numbers as words" checkbox.
+   */
+  normalization?: { enabled: boolean };
+}
+
+/** Options for one speak() or synthesize() call. */
+export interface SynthesisCallOptions {
+  /** Speed multiplier: 1 is the voice's normal speed, above 1 is faster. Defaults to the voice's defaultPace. */
+  pace?: number;
+  /** Read numbers as words (normalization). Defaults to ReaderOptions.normalization, which defaults to on. */
+  normalize?: boolean;
 }
 
 /** Audio for a piece of text, without playing it. */
@@ -65,7 +78,7 @@ export interface Reader {
    * Synthesizes and plays; Q1 treats the whole text as one sentence (splitting and streaming arrive in Q2).
    * Rejects with a QariError (also emitted as `error`); calling speak again is the retry.
    */
-  speak(text: string, options?: { pace?: number }): Promise<void>;
+  speak(text: string, options?: SynthesisCallOptions): Promise<void>;
   /**
    * Plays audio made earlier by synthesize() (e.g. to show its timings before playing, or to play it again) without
    * making it again. `from` starts that many seconds in (e.g. at a word's start). Call from a click, like speak(); a
@@ -75,7 +88,7 @@ export interface Reader {
   stop(): void;
   /** Seconds into the audio being heard now, or null when nothing is playing. */
   position(): number | null;
-  synthesize(text: string, options?: { pace?: number }): Promise<Synthesis>;
+  synthesize(text: string, options?: SynthesisCallOptions): Promise<Synthesis>;
   /** Switches voice; same model files (e.g. Male → Female sound) reuse the loaded sessions. On failure, the previous voice is reloaded, then it rejects. */
   setVoice(voice: VoiceConfig): Promise<void>;
   /** Switches between default and accelerated mode. If accelerated mode fails, the reader goes back to the previous mode, then rejects. */
@@ -185,8 +198,9 @@ export async function createReader(options: ReaderOptions): Promise<Reader> {
     return qariError;
   };
 
-  const synthesize = async (text: string, synthesisOptions: { pace?: number } = {}): Promise<Synthesis> => {
-    const audio = await client.request({ type: 'synthesize', text, pace: synthesisOptions.pace ?? voice.defaultPace ?? 1 }, 'audio');
+  const synthesize = async (text: string, synthesisOptions: SynthesisCallOptions = {}): Promise<Synthesis> => {
+    const normalize = synthesisOptions.normalize ?? options.normalization?.enabled ?? true;
+    const audio = await client.request({ type: 'synthesize', text, pace: synthesisOptions.pace ?? voice.defaultPace ?? 1, normalize }, 'audio');
     return { pcm: audio.pcm as Float32Array<ArrayBuffer>, sampleRate: audio.sampleRate, timings: audio.timings };
   };
 

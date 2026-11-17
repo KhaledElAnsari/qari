@@ -19,8 +19,8 @@ Q0 and Q1 were first built against the earlier PRD (Arabic + English, optional t
 
 These override PRD v0.2 where they differ; the PRD has been updated to v0.3 to match.
 
-**1. Normalization always runs for listeners.** No checkbox, no `normalize` attribute, no "digits may be skipped" warning: the listener always hears numbers and abbreviations as words. The element's `normalize` attribute was removed.
-- **Developer-only off switch** (Khaled, 2026-11-16): `createReader({ normalization: { enabled: false } })`, default `true`, for tests and for comparing against the raw text. **Never shown to listeners**: no attribute, no UI control, not in the element. Built with normalization in Q3, not before, so the option never exists without doing something.
+**1. Normalization always runs for listeners.** *Superseded on 2026-11-17 (Khaled): normalization is an optional step, on by default, with a listener-facing checkbox and a note that it isn't 100% accurate, so listeners can turn it off and write numbers as words themselves.* Earlier text: no checkbox, no `normalize` attribute, no "digits may be skipped" warning: the listener always hears numbers and abbreviations as words. The element's `normalize` attribute was removed.
+- **Off switch** (Khaled, 2026-11-16; no longer developer-only since 2026-11-17, see above). Now also per call: `speak(text, { normalize })` / `synthesize(text, { normalize })`. Original note: `createReader({ normalization: { enabled: false } })`, default `true`, for tests and for comparing against the raw text. **Never shown to listeners**: no attribute, no UI control, not in the element. Built with normalization in Q3, not before, so the option never exists without doing something.
 
 **2. Default mode (CPU) unless the listener chooses accelerated mode (GPU); no automatic switching.**
 - [Certain] `createReader({ backend })` takes `'wasm'` (default) or `'webgpu'`; `'auto'` is gone. `reader.setBackend(mode)` switches. The listener sees the two as **الوضع الافتراضي · default mode** and **الوضع المسرَّع · accelerated mode** (`MODE_LABELS`, the only place the names live).
@@ -118,6 +118,14 @@ This workspace has no real voice files and no Safari, so these are open:
 5. On a device with a real GPU (your Pixel 8 Pro, the M3): accelerated mode loads and reads, and switching back to default mode works.
 
 ## Not built yet (by milestone)
+
+## Q3: normalization (started 2026-11-17, numbers first)
+
+- [Certain] **Numbers → words** (`normalization/arabic-numbers.ts`), ported and extended from Maqroo2's `ar_numbers.py`: 0 to 999,999,999,999 with Arabic counting rules (أَلْفٍ / أَلْفَيْنِ / ثَلَاثَةِ آلَافٍ / أَحَدَ عَشَرَ أَلْفًا / مِئَةِ أَلْفٍ, the same for millions and billions); Western, Arabic-Indic and Persian digits; thousands separators (`1,500`, `١٬٥٠٠`); decimals (`3.5`, `٢٫٠٥` → "… فَاصِلَة …", a fraction with a leading zero read digit by digit); percent (`50%`, `٥٠٪` → "… بِالمِئَةِ"). A leading zero or a number above the range is read digit by digit (phone numbers, codes). A prefix written onto a number stays on its first word (وَ12 → وَاثْنَيْ عَشَرَ, hamzat al-wasl's kasra dropped); punctuation after it stays on its last word, so pauses don't move.
+- [Certain] **Known limit (as in Maqroo2):** always genitive case, counted noun assumed masculine. "وَلَهُ ٣ أَبْنَاءٍ" is read ثَلَاثَةٍ where the grammar wants ثَلَاثَةُ. Fixing it needs case and gender from the surrounding words.
+- [Certain] **Word map:** `normalizeForSpeech(text)` returns spoken words, each with its display word's index. Timings follow the spoken words: a display word spans all of its spoken words (`spokenIndexes`), and each spoken word's `said` holds its spoken form when it differs from the text. `stats.words` counts *display* words heard ("1950" once).
+- [Certain] **Developer switch** built: `createReader({ normalization: { enabled: false } })`, passed per synthesis to the adapter.
+- **Not yet in Q3:** abbreviations dictionary, dates and times, currency and units, ordinals, case and gender agreement, Section 4 table and gold set (PRD).
 
 ## Q4: word timings (started 2026-11-17, ahead of Q2 and Q3)
 

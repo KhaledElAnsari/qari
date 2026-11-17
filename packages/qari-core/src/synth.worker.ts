@@ -61,7 +61,7 @@ async function handle(request: WorkerRequest): Promise<void> {
       return;
     case 'synthesize': {
       if (!adapter) throw new QariError('unexpected', 'Synthesize was requested before a voice was loaded.');
-      const result = await runOn(loadedBackend, 'accelerated-mode-failed', 'reading-failed', () => (adapter as RuntimeAdapter).synthesize(request.text, request.pace));
+      const result = await runOn(loadedBackend, 'accelerated-mode-failed', 'reading-failed', () => (adapter as RuntimeAdapter).synthesize(request.text, request.pace, { normalize: request.normalize }));
       post({ type: 'audio', requestId: request.requestId, ...result }, [result.pcm.buffer]);
       return;
     }

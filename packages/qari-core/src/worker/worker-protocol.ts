@@ -19,7 +19,7 @@ export interface LoadProgress {
 export type WorkerRequest =
   | { type: 'probe'; requestId: number }
   | { type: 'load'; requestId: number; voice: VoiceConfig; backend: Backend; wasmPaths?: string }
-  | { type: 'synthesize'; requestId: number; text: string; pace: number }
+  | { type: 'synthesize'; requestId: number; text: string; pace: number; normalize: boolean }
   | { type: 'dispose'; requestId: number };
 
 // ------------------------------------------------ worker → main thread

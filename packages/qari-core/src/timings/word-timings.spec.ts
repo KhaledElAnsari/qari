@@ -2,6 +2,7 @@ import { prepareArabicText } from '../frontends/arabic-phonetiser/prepare-text';
 import { SEPARATOR_TOKEN, symbolId } from '../frontends/arabic-phonetiser/symbols';
 import { arabicToTokens } from '../frontends/arabic-phonetiser/tokenize';
 import { computeWordTimings, splitDisplayWords } from './word-timings';
+import { normalizeForSpeech } from '../normalization/normalize';
 import type { WordTimings } from './word-timings';
 
 // Made-up frame counts: 2 per sound, 10 per punctuation pause, 3 per word separator. 0.01 s per frame.
@@ -72,6 +73,21 @@ describe('word timings (Q4)', () => {
 
   it('leaves words the voice can\'t read out of the stats', () => {
     expect(timeText('MIT سَلامٌ').stats.words).toBe(1);
+  });
+
+  it('times a number across the words it is said as, with "said" for each (normalization word map)', () => {
+    const text = 'عَامِ 1950، وَلَهُ';
+    const spokenWords = normalizeForSpeech(text);
+    const tokens = arabicToTokens(prepareArabicText(spokenWords.map(word => word.text).join(' '))).filter(token => symbolId(token) !== undefined);
+    const timings = computeWordTimings({ text, spokenWords, tokens, durations: tokens.map(framesFor), secondsPerFrame: SECONDS_PER_FRAME });
+    if ('problem' in timings) throw new Error(timings.problem);
+    expect(timings.words.map(word => [word.text, word.said])).toEqual([
+      ['عَامِ', undefined], ['1950،', 'أَلْف'], ['1950،', 'وَتِسْعِمِئَة'], ['1950،', 'وَخَمْسِينَ،'], ['وَلَهُ', undefined],
+    ]);
+    const year = timings.displayWords[1];
+    expect(year.spokenIndexes).toEqual([1, 2, 3]);
+    expect([year.start, year.end]).toEqual([timings.words[1].start, timings.words[3].end]);
+    expect(timings.stats.words).toBe(3);
   });
 
   it('reports a problem instead of guessing when tokens and words don\'t line up', () => {
