@@ -3,7 +3,7 @@ import type { Backend } from '../../backend/backend-probe';
 import { QariError } from '../../errors/qari-error';
 import { normalizeForSpeech } from '../../normalization/normalize';
 import type { SpokenWord } from '../../normalization/normalize';
-import { splitDisplayWords, wordTimingsFromSpans } from '../../timings/word-timings';
+import { wordTimingsFromSpans } from '../../timings/word-timings';
 import type { WordTimings } from '../../timings/word-timings';
 import type { VoiceConfig } from '../../voice/voice-config';
 import type { AdapterContext, RuntimeAdapter, SynthesisOptions, SynthesisResult, VoiceModels } from '../runtime-adapter';
@@ -12,7 +12,7 @@ import { parseBayanConfig } from './bayan-config';
 import type { BayanConfig } from './bayan-config';
 import { MagpieGenerator } from './generator';
 import type { Take } from './generator';
-import { groupSentences } from './sentences';
+import { groupSentences, lineBreaksAfter } from './sentences';
 import { BayanTokenizer } from './tokenizer';
 
 /** Files a magpie-tts voice lists under `files`, besides `model` (decoder step) and `vocoder` (codec). */
@@ -24,16 +24,6 @@ export const MAX_TAKES = 3;
 const SENTENCE_GAP_SECONDS = 0.2;
 /** Longest piece read in one take, in letters (diacritics don't count); Bayan's max is ~37 s of audio. */
 const MAX_SENTENCE_LETTERS = 180;
-
-/** Per spoken word: does a line break follow it in the text (a sentence ends there)? */
-function lineBreaksAfter(text: string, spokenWords: readonly SpokenWord[]): boolean[] {
-  const display = splitDisplayWords(text);
-  return spokenWords.map((word, i) => {
-    const lastOfItsWord = i + 1 === spokenWords.length || spokenWords[i + 1].displayIndex !== word.displayIndex;
-    const next = display[word.displayIndex + 1];
-    return lastOfItsWord && next !== undefined && text.slice(display[word.displayIndex].charEnd, next.charStart).includes('\n');
-  });
-}
 
 /** Copies bytes into an aligned Float32Array (the downloaded Uint8Array may start at any offset). */
 const toFloat32 = (bytes: Uint8Array) => new Float32Array(bytes.slice().buffer);

@@ -261,8 +261,8 @@ const showMode = (next: Backend) => modeList.show(next);
 type Quality = 'medium' | 'high';
 const QUALITIES: readonly Quality[] = ['medium', 'high'];
 
-/** Which quality each voice belongs to, by its runtime: nipponjo's Mixer-TTS is medium, Bayan's MagpieTTS is high. */
-const QUALITY_BY_RUNTIME: Record<string, Quality> = { 'mixer-tts': 'medium', 'magpie-tts': 'high' };
+/** Which quality each voice belongs to, by its runtime: nipponjo's Mixer-TTS is medium, Bayan's MagpieTTS and Nabra's Kokoro are high. */
+const QUALITY_BY_RUNTIME: Record<string, Quality> = { 'mixer-tts': 'medium', 'magpie-tts': 'high', 'kokoro': 'high' };
 const qualityOf = (voice: VoiceConfig): Quality => QUALITY_BY_RUNTIME[voice.runtime] ?? 'medium';
 
 const qualityList = createSelectList<Quality>({

@@ -36,7 +36,7 @@ What the host does decide:
 
 The voice files are kept out of git (the folders in `voices/models/` are ignored). Two ways to get them into a build:
 
-- **By hand (local builds):** copy `mixer128_dur.onnx` and `vocos22.onnx` into `voices/models/nipponjo/` (and Bayan's files into `voices/models/bayan/`), then run `npm run build`.
+- **By hand (local builds):** copy `mixer128_dur.onnx` and `vocos22.onnx` into `voices/models/nipponjo/` (and Bayan's files into `voices/models/bayan/`, Nabra's into `voices/models/nabra/`), then run `npm run build`.
 - **From a release (automatic deploys):** create a release of this repo tagged `models-v1` with both files attached under those exact names. `npm run fetch-models` downloads any missing file before the build. The deploy workflow does this for you; the repo must be public.
 
   ```sh

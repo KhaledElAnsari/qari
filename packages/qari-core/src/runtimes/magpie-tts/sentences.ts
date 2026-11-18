@@ -1,3 +1,6 @@
+import type { SpokenWord } from '../../normalization/normalize';
+import { splitDisplayWords } from '../../timings/word-timings';
+
 /** Bayan says one sentence per take; longer text is split here (Q1 reads a whole text as one request). */
 // Diacritics (tashkeel and Quranic marks) don't count as letters. Escaped: typed as characters, the marks get reordered.
 const HARAKAT = /[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED]/g;
@@ -48,5 +51,15 @@ export function groupSentences(words: readonly string[], max = 180, breakAfter: 
     if (letterCount(sentence.map(i => words[i])) <= max) return [sentence];
     return pack(runs(sentence, i => CLAUSE_END.test(words[i])), words, max)
       .flatMap(clause => (letterCount(clause.map(i => words[i])) <= max ? [clause] : pack(clause.map(i => [i]), words, max)));
+  });
+}
+
+/** Per spoken word: does a line break follow it in the text (a sentence ends there)? */
+export function lineBreaksAfter(text: string, spokenWords: readonly SpokenWord[]): boolean[] {
+  const display = splitDisplayWords(text);
+  return spokenWords.map((word, i) => {
+    const lastOfItsWord = i + 1 === spokenWords.length || spokenWords[i + 1].displayIndex !== word.displayIndex;
+    const next = display[word.displayIndex + 1];
+    return lastOfItsWord && next !== undefined && text.slice(display[word.displayIndex].charEnd, next.charStart).includes('\n');
   });
 }

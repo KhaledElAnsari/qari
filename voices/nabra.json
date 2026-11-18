@@ -1,0 +1,17 @@
+{
+  "id": "nabra",
+  "label": { "en": "Nabra", "ar": "نبرة" },
+  "model": { "url": "models/nabra/nabra_fp16.onnx", "sizeBytes": 163953050, "version": "2026-11-18-fp16-webgpu-atan2fix", "sha256": "fdf1391d402ffdc4ef71bfe9ac6b27d999f1359f9feddd841b1a858dccb68250" },
+  "files": {
+    "config": { "url": "models/nabra/nabra_config.json", "sizeBytes": 10998, "version": "2026-11-18", "sha256": "ad6308d93c8460485256779fcd87ad901c4db926e63c02e8344541fc022b078b" },
+    "voice": { "url": "models/nabra/voice_af_msa.bin", "sizeBytes": 522240, "version": "2026-11-17", "sha256": "129d447a7c9bdce1d5b6cb5ecb789bbfd9f427b7775131a97dfa5638583b3b92" },
+    "espeak": { "url": "models/nabra/espeak-ng.wasm", "sizeBytes": 1550923, "version": "1.52.0-ar", "sha256": "7415bbabbad096eab28cd5955eaa1245003517728712e300ff06f166dc11d580" }
+  },
+  "runtime": "kokoro",
+  "frontend": { "kind": "espeak-ng-ar" },
+  "sampleRate": 24000,
+  "timings": "native",
+  "durationOutput": "durations",
+  "defaultPace": 0.9,
+  "licence": { "type": "apache-2.0" }
+}

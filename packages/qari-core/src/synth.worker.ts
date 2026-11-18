@@ -7,6 +7,7 @@ import type { Backend, ProbeResult } from './backend/backend-probe';
 import { describeError, QariError, toQariError } from './errors/qari-error';
 import { fetchModel, openCacheDirectory } from './models/model-store';
 import type { FileProgress } from './models/model-store';
+import { KokoroAdapter } from './runtimes/kokoro/kokoro.adapter';
 import { MagpieTtsAdapter } from './runtimes/magpie-tts/magpie-tts.adapter';
 import { MixerTtsAdapter } from './runtimes/mixer-tts.adapter';
 import { configureOrt } from './runtimes/ort-session';
@@ -22,6 +23,7 @@ const PROGRESS_INTERVAL_MS = 100;
 const ADAPTERS: Readonly<Record<string, (context: AdapterContext) => RuntimeAdapter>> = {
   'mixer-tts': context => new MixerTtsAdapter(context),
   'magpie-tts': context => new MagpieTtsAdapter(context),
+  'kokoro': context => new KokoroAdapter(context),
 };
 
 interface WorkerScope {
