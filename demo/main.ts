@@ -1,5 +1,5 @@
 /**
- * Demo: prepare Male/Female sound in default or accelerated mode, read a sentence. `?voice-base=<path>` loads configs from
+ * Demo: prepare Sami/Amal in default or accelerated mode, read a sentence. `?voice-base=<path>` loads configs from
  * another folder on this same site (the browser tests use it); other sites are ignored, so a link can't point the demo at
  * someone else's files.
  * Also checks that the model files are on the server and can clear the saved voice files (OPFS).
@@ -475,7 +475,7 @@ const sameVoice = (a: VoiceConfig, b: VoiceConfig) => a.id === b.id && modelKey(
 
 /**
  * Gets the reader to the chosen voice and mode: loads it the first time, otherwise switches only what changed
- * (Male ↔ Female sound reuse the same model files, so no download).
+ * (Sami ↔ Amal reuse the same model files, so no download).
  */
 async function loadSelectedVoice(): Promise<Reader> {
   const voice = selectedVoice();

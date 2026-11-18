@@ -1,6 +1,6 @@
 {
   "id": "nipponjo-male",
-  "label": { "en": "Male sound", "ar": "صوت رجالي" },
+  "label": { "en": "Sami (male)", "ar": "سامي (ذكر)" },
   "speaker": 1,
   "isDefault": true,
   "model": { "url": "models/nipponjo/mixer128_dur.onnx", "sizeBytes": 14176035, "version": "2024-09-20+durations" },

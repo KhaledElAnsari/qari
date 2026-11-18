@@ -1,6 +1,6 @@
 {
   "id": "nabra",
-  "label": { "en": "Nabra", "ar": "نبرة" },
+  "label": { "en": "Hajar (female)", "ar": "هاجر (أنثى)" },
   "model": { "url": "models/nabra/nabra_fp16.onnx", "sizeBytes": 163953050, "version": "2026-11-18-fp16-webgpu-atan2fix", "sha256": "fdf1391d402ffdc4ef71bfe9ac6b27d999f1359f9feddd841b1a858dccb68250" },
   "files": {
     "config": { "url": "models/nabra/nabra_config.json", "sizeBytes": 10998, "version": "2026-11-18", "sha256": "ad6308d93c8460485256779fcd87ad901c4db926e63c02e8344541fc022b078b" },

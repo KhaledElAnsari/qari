@@ -1,6 +1,6 @@
 {
   "id": "bayan-murad",
-  "label": { "en": "Bayan (Murad)", "ar": "بيان (مراد)" },
+  "label": { "en": "Murad (male)", "ar": "مراد (ذكر)" },
   "model": { "url": "models/bayan/decoder_step_fp16.onnx", "sizeBytes": 228286229, "version": "2026-11-17-fp16-webgpu" },
   "vocoder": { "url": "models/bayan/codec_decoder.onnx", "sizeBytes": 138632952, "version": "2026-11-17-fp32" },
   "files": {

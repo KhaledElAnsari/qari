@@ -133,8 +133,8 @@ Limits:
 ## After each deploy, check
 
 1. The page loads over HTTPS. The top line shows whether accelerated mode is available on that device, and "Cross-origin isolated: true" on hosts with the headers.
-2. **Prepare audio** downloads with real MB progress and ends with "Ready · Male sound · default mode".
-3. **Read** speaks. Switching to Female sound doesn't download again.
+2. **Prepare audio** downloads with real MB progress and ends with "Ready · Sami (male) · default mode".
+3. **Read** speaks. Switching to Amal doesn't download again.
 4. Reloading and preparing again says "From cache".
 5. On a device with a real GPU, accelerated mode works. On one without, it shows the plain "doesn't work on this device" message and stays in default mode.
 

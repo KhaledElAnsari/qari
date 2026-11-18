@@ -15,7 +15,7 @@ export type TimingsMode = (typeof TIMINGS_MODES)[number];
 export interface VoiceConfig {
   id: string;
   label: { en: string; ar: string };
-  /** Multi-speaker models: 1 = Male sound, 3 = Female sound for nipponjo. */
+  /** Multi-speaker models: 1 = Sami, 3 = Amal for nipponjo. */
   speaker?: number;
   isDefault?: boolean;
   model: ModelFile;

@@ -95,7 +95,7 @@ export interface Reader {
   /** Seconds into the audio being heard now, or null when nothing is playing. */
   position(): number | null;
   synthesize(text: string, options?: SynthesisCallOptions): Promise<Synthesis>;
-  /** Switches voice; same model files (e.g. Male → Female sound) reuse the loaded sessions. On failure, the previous voice is reloaded, then it rejects. */
+  /** Switches voice; same model files (e.g. Sami → Amal) reuse the loaded sessions. On failure, the previous voice is reloaded, then it rejects. */
   setVoice(voice: VoiceConfig): Promise<void>;
   /** Switches between default and accelerated mode. If accelerated mode fails, the reader goes back to the previous mode, then rejects. */
   setBackend(backend: Backend): Promise<void>;

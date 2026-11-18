@@ -5,12 +5,12 @@ import { modelKey, parseVoiceConfig, resolveVoiceUrls, voiceFiles } from './voic
 import type { VoiceConfig } from './voice-config';
 
 describe('voice config (Q1, PRD 5.3)', () => {
-  it('accepts the example Male sound and Female sound configs', () => {
+  it('accepts the example Sami and Amal configs', () => {
     expect(parseVoiceConfig(maleSound)).toMatchObject({ ok: true, voice: { id: 'nipponjo-male', speaker: 1, isDefault: true } });
     expect(parseVoiceConfig(femaleSound)).toMatchObject({ ok: true, voice: { id: 'nipponjo-female', speaker: 3 } });
   });
 
-  it('makes Female sound a config change: same model files, different speaker', () => {
+  it('makes Amal a config change: same model files, different speaker', () => {
     expect(modelKey(maleSound as VoiceConfig)).toBe(modelKey(femaleSound as VoiceConfig));
   });
 

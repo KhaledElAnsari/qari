@@ -1,6 +1,6 @@
 {
   "id": "nipponjo-female",
-  "label": { "en": "Female sound", "ar": "صوت نسائي" },
+  "label": { "en": "Amal (female)", "ar": "أمل (أنثى)" },
   "speaker": 3,
   "model": { "url": "models/nipponjo/mixer128_dur.onnx", "sizeBytes": 14176035, "version": "2024-09-20+durations" },
   "vocoder": { "url": "models/nipponjo/vocos22.onnx", "sizeBytes": 58783147, "version": "2024-09-21" },

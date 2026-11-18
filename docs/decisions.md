@@ -178,3 +178,8 @@ Q2 sentence splitting and streaming · Q3 normalization and the word map · Q4 t
 - [Likely] **Speed, M4 Pro, Chrome:** accelerated mode: voice ready in ~5 s from cache, 13.2 s of audio for a 21-word text, first audio 132 ms after Read; model RTF ~0.07 (nabra-onnx bench). Default mode: RTF ~0.4 with 4 threads (QARI_ISOLATE=1), about real time with 1.
 - [Certain] **Release `models-v3` (2026-11-18):** all 13 files (nipponjo 2, Bayan 7, Nabra 4), same names and sizes as in `voices/models/`. **Open:** set the repo variable `QARI_MODELS_TAG` to `models-v3` when this reaches `main`, so the deploy's `fetch-models` finds Nabra's files.
 - **Not yet:** a tashkeel step (Nabra, like the others, reads text as pasted; undiacritized text works but espeak guesses the vowels); ظ sounds like ذ (espeak doesn't mark it).
+
+## Voice names (2026-11-18)
+
+- **Voices have people's names, with the gender after them:** Sami (male) / سامي (ذكر), Amal (female) / أمل (أنثى) for nipponjo speakers 1 and 3, Murad (male) / مراد (ذكر) for Bayan (the name its authors gave the voice), Hajar (female) / هاجر (أنثى) for Nabra (a name popular in Morocco). Descriptions like "Male sound" stop working once two voices share a gender, and model names belong to the upstream projects. Earlier entries above use the old labels.
+- **Ids don't change** (`nipponjo-male`, `nipponjo-female`, `bayan-murad`, `nabra`), so saved choices and model URLs keep working; only `label` changed. The gender goes in parentheses, not after "·", because the stage line already uses "·" ("Ready · Sami (male) · default mode").
