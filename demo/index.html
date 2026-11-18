@@ -82,7 +82,7 @@
     /* ── Switches (voice, mode): one gold pill slides between choices. ── */
     .switch { position: relative; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; padding: .25rem; border-radius: 999px; background: var(--paper); border: 1px solid var(--line); max-width: 26rem; --i: 0; }
     .switch::before {
-      content: ""; position: absolute; inset-block: .25rem; inset-inline-start: .25rem; width: calc((100% - .5rem) / var(--n, 2));
+      content: ""; box-sizing: border-box; position: absolute; inset-block: .25rem; inset-inline-start: .25rem; width: calc((100% - .5rem) / var(--n, 2));
       border-radius: 999px; background: var(--sheet); border: 1px solid var(--gold); box-shadow: 0 2px 8px -4px rgb(176 125 37 / .6);
       transform: translateX(calc(var(--i) * 100% * var(--flow))); transition: transform 260ms var(--ease-out);
     }
