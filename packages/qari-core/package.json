@@ -13,9 +13,9 @@
     ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
     "./timing-file.schema.json": "./schemas/timing-file.schema.json"
   },
-  "files": ["dist", "schemas"],
+  "files": ["dist", "schemas", "LICENSE", "NOTICE"],
   "scripts": {
-    "build": "vite build && tsc -p tsconfig.build.json"
+    "build": "cp ../../LICENSE ../../NOTICE . && vite build && tsc -p tsconfig.build.json"
   },
   "dependencies": {
     "onnxruntime-web": "~1.31.1"

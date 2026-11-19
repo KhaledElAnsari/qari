@@ -10,3 +10,7 @@ playwright-report/
 # One folder per model family; Bayan's config and .bin files belong with its models, so whole folders are ignored.
 voices/models/*/
 voices/models/*.onnx
+
+# Copied from the repo root at build time (see each package's build script).
+packages/*/LICENSE
+packages/*/NOTICE

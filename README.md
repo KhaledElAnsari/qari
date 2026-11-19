@@ -87,9 +87,15 @@ Regenerate fixtures: `python3 -I tools/gen-phonetiser-golden.py <tts_arabic/tts_
 
 ## Licence
 
-Code: Apache-2.0 (the `LICENSE` and `NOTICE` files land once the public repo exists). Free to use, including commercially; keep the NOTICE file when you redistribute qari. Third-party parts: [THIRD_PARTY.md](THIRD_PARTY.md).
+Qari is licensed under Apache-2.0. You can use, change and redistribute it, including commercially, as long as you keep the licence and the [NOTICE](NOTICE) file, which credits Qari, with it.
 
-The example voices are a separate matter: the nipponjo Mixer-TTS and Vocos models are licensed **non-commercial**, whatever qari's own licence. Use voices whose licence fits your project.
+If you ship Qari, add this to your own NOTICE file or credits:
+
+```
+This product includes Qari (قارئ), Copyright 2026 Khaled ElAnsari, licensed under Apache-2.0.
+```
+
+Each voice model has its own licence.
 
 ### Credit
 
